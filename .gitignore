@@ -55,3 +55,15 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# Local project and IDE exclusions
+**/bin/
+**/obj/
+.idea/
+.vs/
+*.user
+*.suo
+.env
+**/.env
+*.log
+.DS_Store

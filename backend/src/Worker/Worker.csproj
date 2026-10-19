@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Kaban.Worker</AssemblyName>
+    <RootNamespace>Kaban.Worker</RootNamespace>
+  </PropertyGroup>
+</Project>

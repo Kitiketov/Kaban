@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <AssemblyName>Kaban.Realtime</AssemblyName>
+    <RootNamespace>Kaban.Realtime</RootNamespace>
+  </PropertyGroup>
+</Project>

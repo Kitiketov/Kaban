@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Кабан — API example</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 780px; padding: 28px; margin: auto; line-height: 1.5 }
+    input, button { font: inherit; padding: 8px; margin: 4px }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px }
+    td, th { border-bottom: 1px solid #ddd; padding: 8px; text-align: left }
+    .error { color: #b00020 }
+  </style>
+</head>
+<body>
+  <h1>Кабан — пример API</h1>
+  <p>Учебная фича Weather демонстрирует только HTTP REST и сохранение в PostgreSQL.
+     Worker, Realtime и RabbitMQ <strong>пока не связаны</strong>.</p>
+  <form id="form">
+    <label>Дата <input id="date" type="date" required></label>
+    <label>°C <input id="temperature" type="number" min="-100" max="100" value="20" required></label>
+    <label>Описание <input id="summary" maxlength="120" value="Солнечно" required></label>
+    <button>Создать</button>
+  </form>
+  <p id="status"></p>
+  <table>
+    <thead><tr><th>Дата</th><th>°C</th><th>Описание</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <script>
+    const $ = id => document.getElementById(id);
+    $('date').value = new Date().toLocaleDateString('en-CA');
+    async function refresh() {
+      const r = await fetch('/api/weather');
+      if (!r.ok) throw new Error('GET /api/weather: '+ r.status);
+      const rows = await r.json();
+      const tbody = $('rows'); tbody.replaceChildren();
+      for (const item of rows) {
+        const tr = document.createElement('tr');
+        for (const value of [item.date, item.temperatureC, item.summary]) {
+          const td = document.createElement('td'); td.textContent = value; tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+    }
+    $('form').addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        const r = await fetch('/api/weather', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            date: $('date').value,
+            temperatureC: Number($('temperature').value),
+            summary: $('summary').value
+          })
+        });
+        if (!r.ok) throw new Error('POST: ' + r.status + ' ' + (await r.text()));
+        await refresh(); $('status').textContent = 'Прогноз сохранён через API';
+        $('status').className = '';
+      } catch (err) { $('status').textContent = err.message; $('status').className = 'error'; }
+    });
+    refresh().catch(err => { $('status').textContent = err.message; $('status').className = 'error'; });
+  </script>
+</body>
+</html>
