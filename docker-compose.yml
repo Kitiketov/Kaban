@@ -13,7 +13,22 @@ services:
       test: ["CMD-SHELL", "pg_isready -U kaban -d kaban"]
       interval: 5s
       retries: 10
-
+      
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: kaban
+      RABBITMQ_DEFAULT_PASS: ${POSTGRES_PASSWORD:-local_dev_password}
+    volumes:
+      - kaban_rabbit:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_port_connectivity" ]
+      interval: 5s
+      retries: 10
+   
   api:
     build:
       context: .
@@ -25,6 +40,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "127.0.0.1:5080:80"
 
@@ -34,6 +51,9 @@ services:
       dockerfile: deploy/docker/Worker.Dockerfile
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:80
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "127.0.0.1:5081:80"
 
@@ -43,6 +63,9 @@ services:
       dockerfile: deploy/docker/Realtime.Dockerfile
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:80
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "127.0.0.1:5082:80"
 
@@ -58,3 +81,4 @@ services:
 
 volumes:
   kaban_pg:
+  kaban_rabbit:
