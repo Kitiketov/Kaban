@@ -3,4 +3,10 @@
     <AssemblyName>Kaban.Worker</AssemblyName>
     <RootNamespace>Kaban.Worker</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Contracts\Contracts.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
+  </ItemGroup>
 </Project>

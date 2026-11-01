@@ -2,6 +2,7 @@ using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Weather.Infrastructure;
 using Kaban.Api.Infrastructure.Persistence;
+using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +16,21 @@ builder.Services.AddHealthChecks();
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddPersistence(builder.Configuration); // EF Core + UnitOfWork
 builder.Services.AddWeatherFeature(); // IWeatherRepository -> WeatherRepository
+
+builder.Services.AddMassTransit(x =>
+{
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        var configuration = context.GetRequiredService<IConfiguration>();
+        var rabbitConfig = configuration.GetSection("RabbitMq");
+        
+        cfg.Host(rabbitConfig["Host"] ?? "localhost", h =>
+        {
+            h.Username(rabbitConfig["Username"] ?? "kaban");
+            h.Password(rabbitConfig["Password"] ?? "local_dev_password");
+        });
+    });
+});
 
 var app = builder.Build();
 

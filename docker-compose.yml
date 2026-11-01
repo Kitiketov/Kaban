@@ -13,7 +13,24 @@ services:
       test: ["CMD-SHELL", "pg_isready -U kaban -d kaban"]
       interval: 5s
       retries: 10
-
+      
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: kaban
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-local_dev_password}
+    volumes:
+      - kaban_rabbit:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: [ "CMD-SHELL", "nc -z localhost 5672 || exit 1" ]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+      start_period: 5s
+      
   api:
     build:
       context: .
@@ -22,8 +39,13 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://0.0.0.0:80
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=kaban;Username=kaban;Password=${POSTGRES_PASSWORD:-local_dev_password}
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: kaban
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     ports:
       - "127.0.0.1:5080:80"
@@ -34,6 +56,12 @@ services:
       dockerfile: deploy/docker/Worker.Dockerfile
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:80
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: kaban
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "127.0.0.1:5081:80"
 
@@ -43,6 +71,12 @@ services:
       dockerfile: deploy/docker/Realtime.Dockerfile
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:80
+      RabbitMq__Host: rabbitmq
+      RabbitMq__Username: kaban
+      RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     ports:
       - "127.0.0.1:5082:80"
 
@@ -54,7 +88,8 @@ services:
     depends_on:
       - api
     ports:
-      - "127.0.0.1:8080:80"
+      - "127.0.0.1:8081:80"
 
 volumes:
   kaban_pg:
+  kaban_rabbit:
