@@ -68,7 +68,7 @@ public sealed class RolesConfiguration : IEntityTypeConfiguration<Roles>
     }
 }
 
-public class TeamsProjects : ITable
+public class TeamProjects : ITable
 {
     public int ProjectId { get; set; }
     public Projects? Project { get; set; }
@@ -77,16 +77,16 @@ public class TeamsProjects : ITable
     public Teams? Team { get; set; }
 }
 
-public sealed class TeamsProjectsConfiguration : IEntityTypeConfiguration<TeamsProjects>
+public sealed class TeamsProjectsConfiguration : IEntityTypeConfiguration<TeamProjects>
 {
-    public void Configure(EntityTypeBuilder<TeamsProjects> builder)
+    public void Configure(EntityTypeBuilder<TeamProjects> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(TeamsProjects)));
+        builder.ToTable(TableExtensions.GetDatabaseName(nameof(TeamProjects)));
         builder.HasKey(x => new { x.ProjectId, x.TeamId });
         builder.Property(x => x.ProjectId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(TeamsProjects.ProjectId)));
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(TeamProjects.ProjectId)));
         builder.Property(x => x.TeamId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(TeamsProjects.TeamId)));
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(TeamProjects.TeamId)));
         builder.HasIndex(x => x.ProjectId);
         builder.HasIndex(x => x.TeamId);
         builder.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
