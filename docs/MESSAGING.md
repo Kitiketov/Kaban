@@ -1,16 +1,45 @@
 # Kaban: взаимодействие сервисов через RabbitMQ
 
-> Проверено по `Kitiketov/Kaban`, `main`, commit `4136d1973521c7f4337ea51bddfdc126025f8a34` (2026-11-01). Это описание **того, что в коде есть сейчас**, и отдельно — **правил для будущих задач**, а не утверждение о production-ready обработке.
+> Проверено по `Kitiketov/Kaban`, `main`, tree SHA `3f128e84877ad96769594c329efcbab265ffe8f2` (2026-11-01). **Текущее Weather-поведение и целевая архитектура различаются**. Ниже это отражено явно.
+
+## Целевая граница: БД принадлежит Worker
+
+Для **новых фич** обязательная схема:
+
+```text
+HTTP client
+    │ request JSON
+    ▼
+API: Controller → MediatR Command → FluentValidation
+    │ (формат/поля/диапазоны; авторизация без прямого чтения БД)
+    │ Send(...Requested, JobId) через MassTransit
+    ▼
+RabbitMQ: worker-owned durable queue / receive endpoint
+    ▼
+Worker: IConsumer<TRequested>
+    │ проверка дубликата, бизнес-правил и прав по данным БД
+    │ Worker Application/Domain → Worker Repository/DbContext → PostgreSQL
+    │ commit результата и статуса JobId
+    │ optional Publish(...Completed / ...Failed)
+    ▼
+Realtime (после реализации): SignalR уведомление адресату
+```
+
+**Ни одно новое создание/изменение/чтение бизнес-данных не должно происходить из API через EF Core или SQL.** API отвечает за HTTP, проверку входных данных через `FluentValidation` в MediatR `ValidationBehavior`, авторизацию на основании доверенных claims и отправку сообщения. Worker владеет EF Core, PostgreSQL, миграциями, репозиториями, Unit of Work, проверками бизнес-инвариантов и идемпотентностью. Проверки, требующие БД, **нельзя** подменять только формальной FluentValidation в API.
+
+Для чтения HTTP GET: при единственном владельце БД API отправляет `...Query` в Worker и ожидает `...Response` через MassTransit request/response с конечным timeout, либо команда явно согласует асинхронную модель статуса/результата. Не вводи API read-repository без изменения архитектурного решения.
+
+**Статус:** это целевая архитектура, **она ещё не реализована в текущем Weather**. Порядок безопасного переноса описан в `docs/WORKER_DATABASE_BOUNDARY.md`.
 
 ## Состав solution и владельцы ответственности
 
 | Компонент | Проект | Реальная роль на указанном commit |
 | --- | --- | --- |
-| API | `backend/src/Api/Api.csproj` | ASP.NET Core контроллеры, MediatR/CQRS, FluentValidation, EF Core / PostgreSQL, MassTransit **publisher** |
-| Worker | `backend/src/Worker/Worker.csproj` | Отдельный ASP.NET Core host, MassTransit **consumer**; пока только логирует событие Weather |
+| API | `backend/src/Api/Api.csproj` | Сейчас Weather использует EF Core + публикует событие; **цель для новых фич:** HTTP/MediatR/FluentValidation и отправка заданий без БД |
+| Worker | `backend/src/Worker/Worker.csproj` | Пока MassTransit consumer только логирует Weather; **цель:** выполняет задания и владеет PostgreSQL |
 | Realtime | `backend/src/Realtime/Realtime.csproj` | Отдельный host с health endpoints; SignalR и RabbitMQ обработчиков **пока нет** |
 | Contracts | `backend/Contracts/Contracts.csproj` | Общие контракты сообщений, **библиотека, не четвёртый микросервис** |
-| Database | `backend/Database/Database.csproj` | Отдельный экспериментальный проект модели данных; сейчас **не включён** в `backend/Kaban.sln`, API использует `KabanDbContext` |
+| Database | `backend/Database/Database.csproj` | Экспериментальная модель, пока не подключена к Worker и не в solution; для целевой архитектуры её можно адаптировать как Worker-only библиотеку |
 | Frontend | `frontend/` | Статический клиент; Nginx проксирует `/api/` в API; маршрута `/hubs/` пока нет |
 
 Три микросервиса — **три независимо запускаемых процесса**. Количество проектов в solution больше трёх, это нормально. Worker **не** должен ссылаться на сборку API или импортировать `Kaban.Api.Infrastructure.Persistence.KabanDbContext`. Общая библиотека Contracts содержит только транспортные сообщения; всё остальное принадлежит конкретному сервису.
@@ -52,7 +81,7 @@ Realtime: [не подключён к этому потоку]
 
 ### Ограничения текущей реализации
 
-1. API **сам выполняет** создание прогноза и сохранение в PostgreSQL. Worker не создаёт прогноз — он **узнаёт о совершившемся событии**. Это event notification, а не фоновая команда.
+1. API **сам выполняет** создание прогноза и сохранение в PostgreSQL. Worker не создаёт прогноз — он **узнаёт о совершившемся событии**. Это event notification, а не фоновая команда. **Не продолжай этот паттерн для новых API-фич.**
 2. API вызывает `SaveChangesAsync()` и **только потом** `Publish()`. Между ними нет атомарности: сохранение может пройти, публикация — упасть. **Transactional outbox пока не настроен.**
 3. В примере нет бизнес-идемпотентности, явного retry/redelivery policy, fault handling / мониторинга ошибок и persist результата Worker. Не заявляй exactly-once.
 4. В Realtime нет SignalR Hub, Kafka/RabbitMQ consumer, JWT-конфигурации или отправки клиентам.
@@ -66,28 +95,19 @@ Realtime: [не подключён к этому потоку]
 ### Рекомендуемый сценарий
 
 ```text
-Client
-  | POST /api/.../jobs
-  v
-Api Controller -> IMediator.Send(Start...Command)
-  | validate / authorize
-  | create JobId and durable job/outbox record when needed
-  | commit transaction with outbox entry
-  | HTTP 202 Accepted + JobId/status URL
-  v
-MassTransit -> RabbitMQ -> worker-owned queue
-  |
-  v
-Worker Consumer<...Requested>
-  | deduplicate by JobId/MessageId
-  | execute background work (not in HTTP request)
-  | persist own outcome and/or call owner through explicit contract
-  | publish ...Completed or ...Failed
-  v
-(optionally) Realtime consumer -> authorized SignalR clients
+Client → POST /api/.../jobs
+  → Api/Presentation: HTTP DTO
+  → Api/Application: MediatR Command + FluentValidation
+  → MassTransit Send(...Requested, JobId) → RabbitMQ
+  → Worker Consumer: состояние БД, авторитетные бизнес-правила,
+      идемпотентность, запись данных/статуса в Worker-owned PostgreSQL
+  → optional Publish(...Completed/...Failed) → Realtime
+Client ← 202 Accepted, JobId (после успешной отправки)
 ```
 
-Правило: **API не выполняет тяжёлую работу в контроллере**, не вызывает `Task.Run` для гарантированного задания и не делает HTTP-запрос ожидающим завершения Worker. HTTP DTO — только на стороне API; транспортное сообщение — в `backend/Contracts`.
+**API не создаёт записи Job/outbox в PostgreSQL.** Существующее `SaveChangesAsync` в API — только старый Weather-пример, не образец для новых задач. `202` подтверждает приём/отправку задания на выбранной границе, но не то, что Worker уже завершил работу или записал статус; определите отдельно semantics durably accepted, наличие записи и endpoint статуса.
+
+Если требуется гарантировать, что `JobId` уже сохранён в БД прежде чем вернуть 202, используйте короткое подтверждение от Worker после создания записи Job, например request/response, с тайм-аутом и явной обработкой недоступности Worker. Это **не** ожидание всей фоновой обработки. Если передача сообщения не удалась, возвращайте подходящую ошибку (например 503), а не фиктивный успех.
 
 ### Command vs event; Send vs Publish
 
@@ -101,13 +121,13 @@ Worker Consumer<...Requested>
 - Название: `GenerateReportRequested`, `ProcessTaskRequested` и т.п. **по настоящей предметной операции**.
 - Содержимое: стабильный `JobId` (`Guid`) для учёта работы; необходимые идентификаторы и аргументы; время события/версия при необходимости. Используй `ConsumeContext.MessageId`/`CorrelationId` как transport metadata, а `JobId` — как бизнес-ключ повторной обработки.
 - Не сериализуй EF entity, `DbContext`, HTTP request DTO, токены, пароли и секреты.
-- Договорись, кто владеет статусом задания. Worker не пишет напрямую в API-owned таблицы без явного архитектурного решения; результат может возвращаться через событие API-owner-у.
+- Статус задания и прикладные таблицы принадлежат Worker. API не ведёт свою таблицу Job и не читает таблицы Worker напрямую; запрос состояния направляется Worker через контракт.
 - Контракты версионируй совместимо: при изменении полей учитывай старых consumers; существенные breaking changes согласовывай и тестируй обе стороны.
 
 ### Надёжность
 
-- Публикация + DB commit: если они должны быть атомарно согласованы, добавь **outbox** (например MassTransit EF outbox или свой). Текущий `SaveChanges` затем `Publish` недостаточен.
-- Worker должен быть **идемпотентен**: RabbitMQ/MassTransit могут доставить сообщение повторно. Проверяй `JobId` и атомарно фиксируй состояние выполненной работы.
+- В новой схеме API не делает DB commit. При сохранении результатов и публикации `...Completed`/`...Failed` **в Worker** используй transactional outbox (при требованиях к надёжности), чтобы результат и событие не расходились. Текущий `SaveChanges` затем `Publish` в API — несогласованный legacy Weather, не копировать.
+- Worker, владелец БД, должен быть **идемпотентен**: RabbitMQ/MassTransit могут доставить сообщение повторно. Проверяй `JobId` и атомарно фиксируй состояние выполненной работы.
 - Исключения consumer не глоти: вызывай их наружу, чтобы MassTransit мог обработать ошибку. Разделяй временные и постоянные сбои; настраивай ограниченный retry/redelivery и анализируй `_error` очереди. Не выполняй бесконечные повторения.
 - Логируй `JobId`/correlation, тип сообщения, длительность и результат; **не** логируй секреты и чувствительные данные. Оповещение клиента отправляй только после подтверждения успешного результата.
 - Прежде чем говорить «работает», проверь: начало/конец, отрицательные сценарии, повторную доставку, отсутствие Worker, отказ RabbitMQ, корректность DI и временных ограничений. Отдельно покрой Outbox/Consumer integration tests.
@@ -121,7 +141,8 @@ Worker Consumer<...Requested>
 | Схема сообщения | `backend/Contracts/<Feature>` и тест совместимости контракта |
 | API → MQ | Прикладной handler/адаптер из API (не контроллер и не доменная сущность) + API DI в `Program.cs`/регистрации |
 | Worker принимает задание | `Worker/Features/<Feature>/*Consumer.cs` + `Worker/Program.cs` (AddConsumer/ReceiveEndpoint/ConfigureEndpoints) |
-| Worker делает работу | Сервис Worker со своими зависимостями и состоянием, без ссылки на `Api.csproj` |
+| Worker делает работу и работает с БД | Worker Application/Domain + Worker-owned EF Core DbContext/Repository/UoW и миграции, без ссылки на `Api.csproj` |
+| HTTP GET получает данные | API request client → `...Query` → Worker EF query → `...Response`, конечный timeout |
 | Результат → клиент | Новый message contract, Реaltime consumer + авторизованный SignalR hub; пока **не реализовано** |
 | Изменяется топология/сценарий | Обновить `docs/MESSAGING.md` и относящиеся `AGENTS.md` |
 
