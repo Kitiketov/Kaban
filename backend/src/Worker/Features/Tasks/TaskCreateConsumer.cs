@@ -1,4 +1,4 @@
-﻿using Contracts.Features.Tasks;
+﻿using Contracts.Tasks;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 
@@ -25,8 +25,9 @@ public class TaskCreateConsumer(
             Deadline = DateOnly.FromDateTime(message.Deadline),
             BoardColumnId = message.ColumnId,
         };
-       // await dbContext.AddAsync(entityTask);
-        //await dbContext.SaveChangesAsync();
+        
+        await dbContext.AddAsync(entityTask);
+        await dbContext.SaveChangesAsync();
         
         await context.RespondAsync<TaskCreateSuccess>(new
         {

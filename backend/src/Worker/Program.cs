@@ -1,7 +1,7 @@
-// Отдельный запускаемый сервис. RabbitMQ-консьюмеры и фоновые задания
-// команда добавит позже самостоятельно.
-
+using Kaban.Worker.Features.Tasks;
+using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHealthChecks();
@@ -15,7 +15,6 @@ builder.Services.AddDbContext<KabanDatabaseContext>(
 builder.Services.AddMassTransit(x =>
     {
         x.AddConsumer<TaskCreateConsumer>();     
-
         x.UsingRabbitMq((context, cfg) => 
         { 
             var configuration = context.GetRequiredService<IConfiguration>();
