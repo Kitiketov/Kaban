@@ -2,7 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Database.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Domain;
 
 public enum PriorityEnum
 {
