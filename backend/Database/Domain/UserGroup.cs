@@ -29,7 +29,7 @@ public sealed class UsersConfiguration : IEntityTypeConfiguration<Users>
     }
 }
 
-public class UsersTeams : ITable
+public class UserTeams : ITable
 {
     public int UserId { get; set; }
     public Users? User { get; set; }
@@ -39,18 +39,18 @@ public class UsersTeams : ITable
     public Roles? Role { get; set; }
 }
 
-public sealed class UsersTeamsConfiguration : IEntityTypeConfiguration<UsersTeams>
+public sealed class UsersTeamsConfiguration : IEntityTypeConfiguration<UserTeams>
 {
-    public void Configure(EntityTypeBuilder<UsersTeams> builder)
+    public void Configure(EntityTypeBuilder<UserTeams> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(UsersTeams)));
+        builder.ToTable(TableExtensions.GetDatabaseName(nameof(UserTeams)));
         builder.HasKey(x => new { x.UserId, x.TeamId });
         builder.Property(x => x.UserId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(UsersTeams.UserId)));
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(UserTeams.UserId)));
         builder.Property(x => x.TeamId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(UsersTeams.TeamId)));
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(UserTeams.TeamId)));
         builder.Property(x => x.RoleId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(UsersTeams.RoleId)));
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(UserTeams.RoleId)));
         builder.HasIndex(x => x.UserId);
         builder.HasIndex(x => x.TeamId);
         builder.HasIndex(x => x.RoleId);
