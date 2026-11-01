@@ -1,7 +1,7 @@
-﻿using Database.Domain;
+﻿using Kaban.Worker.Infrastructure.Database.Domain;
 using Microsoft.EntityFrameworkCore;
 
-namespace Database;
+namespace Kaban.Worker.Infrastructure.Database;
 
 public static class TableExtensions
 {
