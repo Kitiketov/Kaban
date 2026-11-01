@@ -1,7 +1,6 @@
 // Отдельный запускаемый сервис. RabbitMQ-консьюмеры и фоновые задания
 // команда добавит позже самостоятельно.
 
-using Kaban.Worker.Features.Weather;
 using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,8 +12,6 @@ builder.Logging.Configure(options =>
 builder.Logging.AddConsole(options => options.IncludeScopes = true);
 builder.Services.AddMassTransit(x =>
     {
-        x.AddConsumer<ForecastCreatedConsumer>();
-
         x.UsingRabbitMq((context, cfg) => 
         { 
             var configuration = context.GetRequiredService<IConfiguration>();
