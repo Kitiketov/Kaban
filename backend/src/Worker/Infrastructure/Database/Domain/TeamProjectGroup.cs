@@ -9,7 +9,7 @@ public class Teams : ITable
     public required string TeamName { get; set; }
 }
 
-public sealed class TeamsConfiguration : IEntityTypeConfiguration<Teams>
+public sealed class TeamConfiguration : IEntityTypeConfiguration<Teams>
 {
     public void Configure(EntityTypeBuilder<Teams> builder)
     {
