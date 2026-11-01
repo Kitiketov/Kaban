@@ -11,16 +11,16 @@ public sealed record BoardTask(
     int Order,
     int[] TagIds)
 {
-    public static BoardTask Create(string Name,
-        string Description,
-        int Priority,
-        DateTime Deadline,
-        int BoardId,
-        int UserId,
-        int ColumnId,
-        int Order,
-        int[] TagIds)
+    public static BoardTask Create(string name,
+        string description,
+        int priority,
+        DateTime deadline,
+        int boardId,
+        int userId,
+        int columnId,
+        int order,
+        int[] tagIds)
     {
-        return new BoardTask(Name, Description, Priority, Deadline, BoardId, UserId, ColumnId, Order, TagIds);
+        return new BoardTask(name, description, priority, deadline, boardId, userId, columnId, order, tagIds);
     }
 }

@@ -1,8 +1,7 @@
-using Contracts.Tasks;
+using Contracts.Features.Tasks;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,7 +15,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddCustomExceptionHandlers();
 builder.Services.AddHealthChecks();
 
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
