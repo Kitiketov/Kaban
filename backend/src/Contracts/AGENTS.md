@@ -1,12 +1,11 @@
-# Contracts — межсервисные сообщения
+# Contracts — правила для межсервисных сообщений
 
-Применяй на `backend/Contracts/**` вместе с корневым `AGENTS.md` и при изменениях прочитай `docs/MESSAGING.md` / `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.
+Действует на `backend/src/Contracts/**` вместе с корневым `AGENTS.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.
 
-- Это **библиотека типов сообщений** для MassTransit, не четвёртый сервис, не слой с бизнес-логикой и не общий `Infrastructure`.
-- Сейчас реально используется только `Weather/ForecastCreatedEvent.cs`: `Date`, `TemperatureC`, `Summary`. У него нет `ForecastId`, `JobId` или status/result; он означает «прогноз уже создан», а не «создай прогноз».
-- Для задания Worker объявляй явно названное `...Requested` с бизнес-ключом `JobId` и только необходимыми входными параметрами; для результата — `...Completed` / `...Failed` с тем же `JobId` и безопасными полями.
-- Для HTTP-чтения данных через Worker используй отдельные request/response-контракты, например `GetTaskQuery`/`GetTaskResponse` через MassTransit `IRequestClient<T>`; **в запросе не должно быть EF query expression, DbContext или IQueryable**.
-- Контракты входа API и сообщения в очередь — разные типы: API проверяет HTTP DTO/command через FluentValidation, затем собирает транспортный DTO. Worker обязан повторно применять бизнес-правила на основе состояния БД.
-- Контракты должны быть transport DTO (например record); не включай ASP.NET types, EF entities, DbContext, DI, MediatR handlers, credentials, JWT, stack traces или `IQueryable`.
-- Сообщение принадлежит пересечению интересов сервисов; schema change согласовывай с publisher и consumer. При breaking change добавляй версионированный тип, тесты сериализации/совместимости и миграционный план.
-- Не делай обратных project references на Api, Worker, Realtime.
+- `backend/src/Contracts/Contracts.csproj` — общая библиотека DTO для API, Worker и будущего Realtime, **не микросервис**. Namespace должен совпадать в publisher/requester и consumer; не копируй namespace по старым путям `backend/Contracts`.
+- Для короткого синхронного HTTP-сценария определяй **request + success response + (при необходимости) типизированные бизнес-отказы**. API использует `IRequestClient<TRequest>.GetResponse<TSuccess, TFailure>`; Worker — `RespondAsync<TSuccess/TFailure>`. Ответная схема должна содержать данные, необходимые клиенту, а не только факт публикации.
+- Пример сейчас: `Features/Tasks/TaskCreateEvent.cs` (`Contracts.Features.Tasks.TaskCreateEvent`) фактически **request/command**, несмотря на суффикс `Event`; `TaskCreateSuccess` — ответ с `TaskId`. Не смешивай этот request с публичным доменным событием. При расширении/переименовании учитывай совместимость и обе стороны обмена.
+- Когда результат нужен Realtime/другим слушателям, введи **отдельный event** `TaskCreated`/`...Completed` и публикуй его после успешного commit Worker. `Publish<TEvent>` не является заменой `RespondAsync<TResponse>` для ожидающего `GetResponse`.
+- Для операций записи, которые клиент может повторить после тайм-аута, добавляй стабильный `OperationId`/idempotency key в request и соответствие в ответе, если нужно. Отделяй бизнес-идентификатор от `MessageId` и транспортного `RequestId`, который обеспечивает корреляцию ответа MassTransit.
+- Используй переносимые, сериализуемые `record`/POCO с примитивными безопасными полями; не передавай EF сущности, `DbContext`, HTTP DTO, MediatR handler, токены, пароли, stack traces, `IQueryable`, SQL expressions. Согласовывай версии DTO и тестируй serialization round-trip.
+- Не допускай обратных ссылок Contracts на Api/Worker/Realtime. Для будущих Query/Response следуй тому же request/response протоколу и единой политике timeout.

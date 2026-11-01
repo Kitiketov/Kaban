@@ -1,79 +1,55 @@
-# Правила разработки API — Kaban
+# API — правила для кодового агента
 
-Действует для `backend/src/Api/**` вместе с корневым `AGENTS.md`. Перед задачами API ↔ Worker прочитай `docs/MESSAGING.md`, `docs/WORKER_DATABASE_BOUNDARY.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.
+Действует на `backend/src/Api/**` вместе с корневым `AGENTS.md`. Для изменений очередей сначала прочитай `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`, `docs/MESSAGING.md` и `docs/WORKER_DATABASE_BOUNDARY.md`.
 
-## Граница сервиса (ОБЯЗАТЕЛЬНО для новых фич)
+## Назначение и обязательный поток
 
-**API = HTTP + MediatR + FluentValidation + MassTransit; Worker = бизнес-обработка + PostgreSQL.**
+**API = HTTP + MediatR + FluentValidation + MassTransit request/response. Бизнес-БД находится только в Worker.** Для коротких операций API **ожидает результат Worker** с конечным тайм-аутом, а затем возвращает его HTTP-клиенту, а не подтверждает одну лишь отправку сообщения.
 
 ```text
-HTTP POST → Controller → IMediator.Send(Command)
-  → ValidationBehavior / AbstractValidator<Command>
-  → Application Handler → MassTransit Send(...Requested)
-  → RabbitMQ → Worker Consumer → Worker DB
-HTTP GET → Controller → IMediator.Send(Query)
-  → Request/Response через MassTransit → Worker DB → DTO
+HTTP POST /api/tasks
+ -> Controller / HTTP DTO
+ -> IMediator.Send(CreateTaskCommand, ct)
+ -> ValidationBehavior + AbstractValidator<CreateTaskCommand>
+ -> Handler: IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>(..., ct)
+ -> RabbitMQ -> Worker -> PostgreSQL -> RespondAsync
+  -> API: response.Message -> response DTO -> HTTP-клиент
 ```
 
-- В API **НЕ** добавляй новые `DbContext`, EF Core repositories, SQL, миграции, `IUnitOfWork` или зависимость от PostgreSQL для новых операций. Не регистрируй новую persistence-модель в `Api/Infrastructure/Persistence`.
-- В `Presentation` — только HTTP DTO, маршруты, проверенный auth context и преобразования; никаких бизнес-операций, RabbitMQ-вызовов из controller, SQL или `SaveChanges`.
-- В `Application` — MediatR commands/queries/handlers/validators/output DTO. Handler работает с абстракцией отправки или MassTransit, но не с БД. Не импортируй MVC/HttpContext, SQL, EF Core, `DbContext` и конкретную persistence-infrastructure в новые handlers.
-- В `Domain` API храни только независимые от БД правила/value objects, если действительно нужны. Сохраняемые сущности и DB-инварианты новых фич принадлежат Worker.
-- В feature-local `Infrastructure` API — адаптеры RabbitMQ и регистрация DI, если нужны. Репозитории и EF configurations новых фич размещай в Worker.
-- Идентификатор автора/пользователя получай только из проверенного контекста аутентификации; не доверяй `UserId` из тела. Worker независимо проверяет реальные права и состояние БД.
+- `Presentation`: HTTP request/response DTO, маршруты, авторизация, mapping в MediatR. Controller не обращается к RabbitMQ, EF/SQL или Worker DB непосредственно.
+- `Application/<Operation>`: `Command.cs`/`Query.cs`, `Handler.cs`, `Validator.cs`. Handler переводит проверенную команду в DTO из `backend/src/Contracts`, вызывает **`IRequestClient<T>`**, дожидается `GetResponse<TSuccess, TBusinessFailure>` и возвращает DTO без ожидания через fire-and-forget. Не добавляй EF Core, `DbContext`, DB repository, миграции, SQL и `SaveChangesAsync` в API.
+- `Domain`: чистые правила/value objects без БД при необходимости; авторитетные инварианты с БД — в Worker. `Infrastructure`: message adapters/DI, только если нужны.
+- Запрос на чтение (`GET`) тоже идёт через MassTransit request/response Worker → DTO. Не добавляй прямой read-repository API.
 
-## Модули и именование
+## Validation, authentication и обработка ошибок
 
-Пример новой операции:
+- Используй существующий `Common/Validation/ValidationBehavior<TRequest,TResponse>`, `AbstractValidator<TCommand>` и `ValidateAsync`. Валидируй обязательность, длину, диапазоны, форматы и независимые от БД правила **до** MQ-вызова. Проверки существования, прав на ресурс, уникальности и конфликтов по БД — Worker.
+- **Важно:** сейчас `AddApplication()` регистрирует MediatR и `ValidationBehavior`, **но не содержит** `AddValidatorsFromAssembly...`; валидатора `CreateTaskCommand` в текущем `main` нет. При реализации валидации добавь `Validator.cs` и явную регистрацию FluentValidation, проверь через DI/интеграционный тест. Не заявляй, что одна регистрация pipeline уже обеспечивает проверку полей.
+- Авторизуй API через доверенные claims; при передаче actorId получай его из проверенного identity, не принимай без проверки `UserId` из body. Worker проверяет бизнес-права повторно.
+- У `IRequestClient<T>` должно быть **настраиваемое конечное время ожидания** (`RequestTimeout`/конфигурация MassTransit) и `CancellationToken` HTTP-запроса. Не используй бесконечное ожидание, `.Result`, `.Wait()`, `Task.Run`, собственный in-memory `TaskCompletionSource` для опубликованных events.
+- Успешный `RespondAsync<TSuccess>` после commit → API возвращает данные Worker клиенту. Типизированный отказ, fault и timeout обрабатывай раздельно по контракту HTTP endpoint; не считай отправку в очередь выполнением бизнес-операции.
+- Тайм-аут **не отменяет гарантированно** уже запущенное задание Worker. Повтор клиента может создать дубликат. Для mutating request добавь стабильный idempotency key/OperationId, передавай через Contracts и требуй дедупликацию Worker. Не делай автоматические blind retries POST.
+- Не раскрывай внутренние `RequestFaultException`/SQL/stack trace в HTTP. Имеющийся `RequestFaultExceptionHandler` сейчас переводит *любой* fault в 400; это **неправильный шаблон** для инфраструктурных ошибок. `RequestTimeoutExceptionHandler` сейчас возвращает 503; соблюдай единый выбранный status и ProblemDetails.
+
+## Реальный пример Tasks, нюансы
+
+- `Features/Tasks/CreateTask/Handler.cs` уже содержит `IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>`, а не `IPublishEndpoint.Publish`. `TaskCreateEvent` по факту команда-запрос, несмотря на имя.
+- `TaskController.Create` сейчас использует `CreatedAtAction(nameof(Create))`, хотя корректного GET по ID нет. Это существующая деталь HTTP-слоя, а не шаблон схемы RabbitMQ. Не навязывай агенту конкретный успешный HTTP status; при отдельном изменении контроллера проверь корректность его маршрута и ответа.
+- `CreateForecastHandler` как имя класса в папке `CreateTask` — существующее несоответствие; для нового кода используй точное `CreateTaskHandler` и не копируй ошибку.
+- `CreateTaskCommand` пока не содержит реального FluentValidation-validator; `Api.csproj` имеет ProjectReference на `../Contracts/Contracts.csproj`. Смотри фактические namespaces (`Contracts.Features.Tasks`), не старую документацию о `backend/Contracts`/Weather.
+
+## Схема файлов и команды
 
 ```text
 Features/<Feature>/
   Presentation/<Feature>Controller.cs
-  Presentation/<Operation>Request.cs
-  Application/<Operation>/Command.cs
-  Application/<Operation>/Validator.cs
+  Presentation/<Operation>Request.cs  # или локальный DTO по существующему стилю
+  Application/<Operation>/Command.cs (или Query.cs)
   Application/<Operation>/Handler.cs
-  Application/DTO/<Operation>Response.cs    # при необходимости
-  Application/Abstractions/I<Name>Dispatcher.cs # только если нужна абстракция
-  Infrastructure/<Feature>MessagingRegistration.cs # при необходимости
+  Application/<Operation>/Validator.cs
+  Application/DTO/<Name>Dto.cs      # только если нужен
 ```
 
-- Сохраняй краткие имена файлов внутри папки операции (`Command.cs`, `Handler.cs`, `Validator.cs`, `Query.cs`), но полные имена классов (`CreateTaskCommand`, `CreateTaskHandler`). Придерживайся namespace по пути `Kaban.Api.Features.<Feature>.Application.<Operation>`, file-scoped namespace, nullable, четыре пробела.
-- `Presentation/*Request` — входящий HTTP DTO; `Application/*Command` или `*Query` — MediatR use case; `backend/Contracts/*Requested` — транспортное сообщение. Это **разные** типы и границы. Не отдавай EF/domain entity в HTTP или RabbitMQ.
-- Records подходят для неизменяемых сообщений/DTO, `sealed` — для типов без наследования. Не создавай бесполезный интерфейс для каждого класса.
+Если операция в текущей фиче размещена непосредственно в `Features/<Feature>/<Operation>`, соблюдай её локальный стиль и не делай бесполезную массовую перестройку папок. Namespace по реальному пути, file-scoped, четыре пробела, nullable, cancellation tokens. Не передавай EF-сущности в HTTP.
 
-## FluentValidation и MediatR
-
-- Контроллер вызывает `IMediator.Send(command, ct)`. Валидация выполняется **до** отправки сообщения через существующий `Common/Validation/ValidationBehavior` и `AbstractValidator<TCommand>` рядом с операцией; не дублируй ручной вызов валидатора в controller.
-- В API валидируй форму, обязательность, длины, диапазоны, форматы и независимые от БД правила. **Не делай DB-запросы из `FluentValidation`**, включая `MustAsync`, для проверок существования, уникальности, владения, текущего статуса. Эти авторитетные проверки и ограничения БД выполняет Worker.
-- Не ослабляй валидацию Worker лишь потому, что API уже проверил JSON: сообщение может быть доставлено повторно или отправлено другим внутренним producer.
-- `AddApplication()` сканирует сборку API для handlers/validators. Пока сканирование validators привязано к `CreateForecastValidator`; если удалишь legacy Weather, поменяй marker на сохраняемый тип сборки.
-- Передавай `CancellationToken` во все асинхронные операции; не используй `.Result`, `.Wait()`, `Task.Run` или fire-and-forget для гарантированной обработки.
-
-## Постановка задания и результат
-
-- Новый command handler создаёт `JobId`, строит DTO `...Requested` из `backend/Contracts` и `await`-ом отправляет его в RabbitMQ через MassTransit. Для задания одному Worker используй адресное `Send` на **согласованный стабильный endpoint**, зарегистрированный Worker. Не считай старый `Publish(ForecastCreatedEvent)` командой.
-- Для долгой работы верни HTTP `202 Accepted` + `JobId`, по возможности — URL ресурса статуса, **только если он действительно реализован**. Это означает отправку задания, а не DB commit Worker. При ошибке MQ не отвечай `202`. Для подтверждения долговечного приёма задания проектируй короткий ack через Worker request/response, если это требуется.
-- Для GET чтение из PostgreSQL делает только Worker: `IRequestClient<TQuery>`/`GetResponse<TResponse>` с конечным тайм-аутом. API переводит недоступность Worker/MQ в корректный HTTP ответ, не скрывает её как 404/200. Не передавай `IQueryable` и Entity.
-- В новых фичах API **не** создаёт Job/status/outbox в собственной БД; если нужен долговечный статус — хранит Worker. Согласованность записи Worker и событий решай на стороне Worker (outbox/идемпотентность).
-- На входящие проверки: невалидный HTTP → 400 `ValidationProblemDetails` через существующий `ValidationExceptionHandler`, без сообщения в MQ; валидный запрос → задание/`JobId`; завершение/ошибка Worker → отдельный результат/статус.
-
-## Legacy Weather: не копировать
-
-Существующий `Features/Weather/Application/CreateForecast/Handler.cs` сейчас вызывает `IWeatherRepository.AddAsync`, `IUnitOfWork.SaveChangesAsync` на API `KabanDbContext`, и затем `IPublishEndpoint.Publish(ForecastCreatedEvent)`. `Infrastructure/Persistence` и `WeatherRepository` нужны **только старой учебной фиче**; `EnsureCreatedAsync()` вызывается лишь в Development. Это сохранённый пример старой реализации, **не шаблон для новых функций**. Удаление API persistence, перенос Weather на Worker, изменение GET и миграции PostgreSQL выполняй отдельной задачей, не ломая базу и клиентов. `backend/Database` пока не интегрирован в solution.
-
-## HTTP, безопасность и ошибки
-
-- Сохраняй существующие HTTP-маршруты/контракты при рефакторинге, если пользователь не запросил изменение. Legacy синхронный Weather возвращает 201 + Location; **новый асинхронный POST** — 202 + JobId. Отсутствие ресурса — 404, конфликт состояния — 409, ошибка валидации — 400. Не маскируй сбой DB/MQ или timeout под успешный ответ.
-- Авторизации в текущем учебном API нет. При реализации User/Task добавляй JWT и проверку пользователя/прав; не передавай refresh JWT как access. Не раскрывай stack trace, SQL или секреты в HTTP или логах.
-- Не отправляй RabbitMQ-сообщения прямо из controller или доменной сущности. В проекте нет гарантий exactly-once; учитывай повторы и события о результате.
-
-## Проверки из корня
-
-```powershell
-dotnet build backend/Kaban.sln
-dotnet test backend/tests/Tests/Tests.csproj
-```
-
-- Для legacy Weather доступен фильтр `--filter FullyQualifiedName~CreateForecastHandlerTests`. Новые обработчики проверяй на то, что невалидная команда не отправляет сообщение, валидная отправляет ожидаемый контракт, а GET корректно обрабатывает timeout и ответ Worker.
-- Интеграционные тесты нужны для DI/validation pipeline/RabbitMQ/Worker/PostgreSQL; прямые unit-тесты handlers и in-memory БД не доказывают реальную доставку/ограничения. При изменении контрактов обновляй `docs/MESSAGING.md`, `AGENTS.md` и соответствующий skill.
+После изменений проверяй `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`; обязательно тестируй: невалидный input **не отправляет MQ**, успешный Worker response, business rejection, fault, timeout, late response и повтор с тем же OperationId. При изменении протокола актуализируй `docs/MESSAGING.md` и контракты.

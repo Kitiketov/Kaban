@@ -1,50 +1,64 @@
-# Архитектура Kaban — три микросервиса, feature-first
+# Архитектура Kaban: API — RabbitMQ — Worker — PostgreSQL
 
-## Принятое решение для новых фич
+> По `Kitiketov/Kaban` `main`, commit `f6b110e9f2d59efc6251060a9ab9680202d24722` (2026-11-01). Старые документы с `Features/Weather` больше не описывают актуальный код.
 
-**HTTP client → API (MediatR + FluentValidation) → RabbitMQ (MassTransit) → Worker (Application/Domain + EF Core) → PostgreSQL.**
+## Границы трёх процессов
 
-- **API** принимает запрос, проверяет входящие поля через `ValidationBehavior`/FluentValidation, аутентифицирует/авторизует пользователя и отправляет `...Requested`. Для долгих операций отвечает `202 Accepted` + `JobId`; это подтверждает постановку, **не** завершение задачи. Не пишет бизнес-данные в PostgreSQL.
-- **Worker** получает сообщение, повторно проверяет правила, требующие доступа к данным, выполняет работу, сохраняет результат и статус в **своей** базе и при необходимости публикует `...Completed`/`...Failed`. Worker должен обеспечивать идемпотентность по `JobId`, безопасные retry и согласованность результата и события (outbox при необходимости).
-- **Чтение через API**: HTTP GET → MediatR Query → MassTransit request/response → Worker → EF Core/PostgreSQL → DTO. У запроса есть timeout; API не использует свой DbContext.
-- **Realtime** — отдельный сервис для будущих SignalR-уведомлений об уже произошедших событиях. Пока SignalR и RabbitMQ consumer там отсутствуют.
-- **Contracts** — общие message DTO для обмена, не микросервис. Не передавать DbContext, EF entity, JWT и пароли. Взаимодействие через Contracts и RabbitMQ, не ссылки на проект API из Worker.
+**Api (`backend/src/Api`)**: ASP.NET Core HTTP/Swagger, Controller, MediatR Command/Query, FluentValidation (`ValidationBehavior` + зарегистрированные validators), request client MassTransit, преобразование ответа Worker в HTTP. **Нет прямых операций с PostgreSQL для новых фич.**
 
-Это **целевая архитектура для новых фич**. Не утверждай, что она полностью работает сегодня. Полные правила: [MESSAGING.md](MESSAGING.md), [WORKER_DATABASE_BOUNDARY.md](WORKER_DATABASE_BOUNDARY.md), [`SKILL.md`](../.agents/skills/kaban-rabbitmq-workflow/SKILL.md).
+**Worker (`backend/src/Worker`)**: RabbitMQ MassTransit consumer, прикладные операции, проверка бизнес-инвариантов с использованием данных, EF Core `KabanDatabaseContext`, репозитории, транзакции, PostgreSQL, idempotency, `RespondAsync` для API. Отдельный `Publish` для будущих subscribers по необходимости.
 
-## Текущее состояние кода: Weather — legacy
+**Realtime (`backend/src/Realtime`)**: отдельный host для будущего защищённого SignalR, подписки на `...Completed` события; сейчас только health endpoints. Не обрабатывает команду создания задач, не пишет в бизнес-БД и не является reply endpoint для API.
 
-Текущий учебный пример всё ещё работает по другому пути:
+**Contracts (`backend/src/Contracts`)**: общие типы transport request/response/event. Отдельная библиотека, **не четвёртый сервис**, без EF и business logic.
+
+## По умолчанию — запрос с ожиданием результата
 
 ```text
-POST /api/weather
-  → WeatherController
-  → IMediator.Send(CreateForecastCommand)
-  → FluentValidation pipeline
-  → CreateForecastHandler
-  → IWeatherRepository + IUnitOfWork
-  → Api/KabanDbContext → PostgreSQL
-  → MassTransit.Publish(ForecastCreatedEvent)
-  → RabbitMQ
-  → Worker/ForecastCreatedConsumer → только ILogger
+HTTP client
+    |
+    v
+API Controller -> MediatR -> FluentValidation
+    |
+    v
+IRequestClient<CreateTaskRequest>.GetResponse<TaskCreatedResult>(request, timeout, ct)
+    |
+    v
+RabbitMQ -> Worker IConsumer<...>
+    |
+    v
+Worker business checks -> EF Core -> PostgreSQL commit
+    |
+    v
+context.RespondAsync<...Result>(created result)
+    |
+    v
+API -> HTTP response with actual Worker result
 ```
 
-`Api/Infrastructure/Persistence/KabanDbContext` — существующий API DbContext старой фичи. Не добавляй в него новые бизнес-сущности. `backend/Database` — отдельный экспериментальный проект, пока не входит в `backend/Kaban.sln` и не подключён к Worker. Worker пока не имеет собственного DbContext, а Realtime — SignalR Hub. Миграция Weather на целевую схему — отдельная задача, не выполняемая простым изменением документации.
+Типы `CreateTaskRequest` и `TaskCreatedResult` в схеме — **иллюстративные имена**, в реальном текущем коде это `TaskCreateEvent` и `TaskCreateSuccess`. На данный момент Worker сохраняет задачу и отвечает через `RespondAsync`, API ждёт `GetResponse`; API не подтверждает успешное выполнение до ответа Worker. Тайм-аут конечен и настраиваем; timeout **не гарантирует** отмены уже запущенного Worker, поэтому нужна idempotency на мутациях.
 
-## Разделение кода
+`context.RespondAsync` — прямой ответ request client. `IPublishEndpoint.Publish` — отдельное широковещательное событие для Realtime/аналитики; **не заменяет** адресный ответ. Для долгих операций, не укладывающихся в HTTP-budget, отдельно согласуй альтернативный протокол JobId/status, но не внедряй его по умолчанию.
 
-- `backend/src/Api/Features/<Feature>/Presentation` — HTTP request DTO, controller, маршруты.
-- `backend/src/Api/Features/<Feature>/Application/<Operation>` — MediatR Command/Query, Handler, Validator; отправка задания или query к Worker через message adapter.
-- `backend/src/Worker/Features/<Feature>` — consumer, application/domain, repository и EF mapping. Общий Worker persistence можно выделить в `Worker/Infrastructure/Persistence`.
-- `backend/Contracts/<Feature>` — неизменяемые message DTO и ответы/события; без бизнес-логики.
-- `backend/src/Realtime` — будущие hub и подписки на события, без хранения бизнес-данных.
+## Размещение файлов
 
-Создавай только слои и файлы, которые нужны новой операции. Придерживайся коротких имён `Command.cs`, `Query.cs`, `Handler.cs`, `Validator.cs` в отдельных каталогах операций и полных имён C# типов, например `CreateTaskCommand`.
+- `backend/src/Api/Features/Tasks/Presentation/TaskController.cs` — HTTP маршрут.
+- `backend/src/Api/Features/Tasks/CreateTask/Command.cs`, `Handler.cs` — MediatR use case. Для полноценной валидации нужны также `Validator.cs` и его DI-регистрация.
+- `backend/src/Contracts/Features/Tasks/TaskCreateEvent.cs`, `TaskCreateSuccess.cs` — message request/response.
+- `backend/src/Worker/Features/Tasks/TaskCreateConsumer.cs` — consumer с DB и response.
+- `backend/src/Worker/Infrastructure/Database/Program.cs` — Worker `KabanDatabaseContext` и mapping.
+- `backend/src/Api/Program.cs`, `backend/src/Worker/Program.cs` — MassTransit DI и transport.
 
-## Трассировка и диагностика
+Для новых операций предпочитай folder `Features/<Feature>/<Operation>/Command.cs`, `Handler.cs`, `Validator.cs`; полные имена C#-типов (`CreateTaskHandler`). HTTP DTO, MediatR Command и Transport DTO — разные типы. Не добавляй ссылки Worker на API или EF entity в Contracts.
 
-Текущие host-проекты включают `TraceId`, `SpanId`, `ParentId` в консольные logging scopes. ASP.NET Core принимает W3C `traceparent`; MassTransit распространяет транспортную диагностику при штатном `Send`/`Publish`. Не копируй trace id в бизнес-DTO и не используй его вместо `JobId`. Для длительных заданий логируй тип сообщения, `JobId`, correlation и итог; не логируй секреты. Экспорт OpenTelemetry/Jaeger и полноценные health readiness с проверкой брокера/БД ещё не реализованы.
+## Состояние и известные ограничения
 
-## Готовность и тестирование
+API действительно ждёт `TaskCreateSuccess`, Worker действительно вызывает SaveChanges/RespondAsync, но repo пока содержит несогласованность namespace (`Contracts.Tasks` vs `Contracts.Features.Tasks`), `Worker.csproj` с DLL HintPath, не зарегистрированные FluentValidation validators, некорректный `CreatedAtAction(nameof(Create))` и отсутствие адреса контейнерной DB для Worker. Не представляй текущую сборку/контейнерный сценарий как проверенные без фактического запуска. Подробнее — `docs/MESSAGING.md`.
 
-Реальные RabbitMQ/PostgreSQL, Docker и `.NET 10` проверяй интеграционными тестами; unit-тесты handler не доказывают, что consumer зарегистрирован и очередь работает. Проверяй отрицательную валидацию (сообщение не отправлено), успешную доставку, дубль, временный сбой, Worker unavailable и фактический результат в БД. Не обещай exactly-once, если нет идемпотентного применения операции.
+Три host-а включают базовые логирующие scopes (`TraceId` и `SpanId`); законченной трассировки OpenTelemetry, outbox/inbox, durable job status, SignalR ещё нет. Health endpoint не равнозначен готовности RabbitMQ/БД.
+
+## Проверка
+
+Из корня: `dotnet restore backend/Kaban.sln`, `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`; при изменении Compose: `docker compose config --quiet`. Для операций через RabbitMQ нужны интеграционные проверки успешного ответа Worker **после commit**, business failure, timeout, fault, повтора после timeout и DB state. Без реального запуска не утверждай, что эти проверки выполнены.
+
+См. `.agents/skills/kaban-rabbitmq-workflow/SKILL.md` и `docs/WORKER_DATABASE_BOUNDARY.md`.

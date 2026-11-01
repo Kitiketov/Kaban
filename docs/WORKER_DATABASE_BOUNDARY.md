@@ -1,57 +1,52 @@
-# Решение для новых фич: PostgreSQL принадлежит Worker
+# Kaban: API ждёт Worker, Worker владеет PostgreSQL
 
-**Статус: целевая архитектура, утверждённая для новых разработок, пока НЕ реализована в текущем Weather (main, tree `3f128e84877ad96769594c329efcbab265ffe8f2`, 2026-11-01).**
+> Сверено с `main` commit `f6b110e9f2d59efc6251060a9ab9680202d24722` (2026-11-01). Это архитектурное решение для новых фич; существующая Tasks частично соответствует ему, но имеет ошибки wiring/надёжности.
 
-## Кто за что отвечает
+## Ответственность
 
-| Область | API | Worker | Realtime |
+| Ответственность | API | Worker | Realtime |
 | --- | --- | --- | --- |
-| HTTP endpoints / Swagger / transport DTO | ✅ | — | — |
-| MediatR Command/Query, FluentValidation формы входа | ✅ | возможно свои обработчики/валидаторы | — |
-| Авторизация клиента по JWT/claims | ✅ | **повторно** проверяет бизнес-права по данным БД / доверенному actor id | ✅ для hub, когда появится |
-| Отправка задания через MassTransit/RabbitMQ | ✅ | принимает | получает только события о результате |
-| EF Core, DbContext, PostgreSQL, миграции | **НЕТ для новых фич** | **ДА, владелец** | НЕТ |
-| Бизнес-операция, проверки текущего состояния БД | НЕТ | **ДА** | НЕТ |
-| Идемпотентность, Job status, сохранение результата | НЕТ | **ДА** | НЕТ |
-| SignalR | НЕТ | НЕТ | будущая реализация |
+| HTTP endpoints, HTTP DTO | да | нет | нет |
+| MediatR + FluentValidation входа | да | собственная проверка при необходимости | нет |
+| Аутентификация запроса | да | повторные domain/DB-permission checks по доверенной identity | SignalR auth, когда появится |
+| RabbitMQ request client и ожидание response | **да** | **RespondAsync** после выполнения | нет |
+| EF Core, DbContext, repository, миграции, PostgreSQL | **нет** | **да** | нет |
+| Выполнение бизнес-операции и фиксация результата | нет | **да** | нет |
+| Публикация события `...Completed` подписчикам | нет (по умолчанию) | по необходимости, отдельно от ответа API | получает (будущее) |
+| Идемпотентность записи / повтор после timeout | передаёт постоянный ключ | гарантирует единственный бизнес-эффект | idempotent notifications, если нужны |
 
-## Новая операция записи
+## Операция записи: синхронный ответ поверх очереди
 
-1. `Api/Features/<Feature>/Presentation`: контроллер разбирает HTTP DTO и вызывает `IMediator.Send(Start...Command)`.
-2. `Api/Features/<Feature>/Application/<Operation>`: `Command.cs`, `Validator.cs`, `Handler.cs`. FluentValidation pipeline (`Common/Validation/ValidationBehavior`) проверяет поля, формат, диапазоны и независимые от БД правила. Авторизация использует подтверждённые identity claims, а не доверяет `UserId` от клиента.
-3. Handler **не** внедряет `DbContext`, `IUnitOfWork`, EF repositories. Он создаёт `JobId`, формирует `Process...Requested` из `backend/Contracts/<Feature>` и `await`-ом отправляет через MassTransit **в согласованный Worker receive endpoint** (`Send` для адресной команды).
-4. Если отправка в брокер не состоялась — вернуть ошибку; при успешной постановке в работу можно вернуть `202 Accepted` с `JobId` и ссылкой на статус. **Не обещать запись в БД или выполнение**: для подтверждения сохранённого статуса Job нужен короткий ack/request-response Worker.
-5. `Worker/Features/<Feature>`: `IConsumer<Process...Requested>` вызывает Worker application service. Там проверяются права и предметные ограничения по БД, дубликаты по `JobId`, выполняется EF Core `SaveChangesAsync()` и при необходимости публикуется `...Completed`/`...Failed`.
-6. Для гарантированной доставки результата используйте Worker-side outbox и не глотайте исключения consumers. MassTransit обеспечивает at-least-once в обычных конфигурациях; реализация должна быть идемпотентной. Realtime после реализации принимает событие о результате и доставляет клиентам.
+1. Клиент вызывает `POST /api/...` и ожидает завершения; API Controller собирает MediatR Command.
+2. `AbstractValidator<TCommand>` **зарегистрирован в DI**, `ValidationBehavior` отвергает неверные поля до обращения к RabbitMQ. API не использует SQL, даже для `MustAsync`.
+3. API MediatR handler вызывает `IRequestClient<TRequest>.GetResponse<TSuccess, TFailure>(request, ct)` с конфигурируемым конечным timeout. В contract передаёт `OperationId`/idempotency key для записи, проверенного actor identity и нужные поля, **без секретов**.
+4. Worker consumer выполняет DB-валидацию и операцию через Worker-owned EF Core, фиксацию и дедупликацию. Если OperationId уже встречался, возвращает сохранённый ответ без второй записи.
+5. **После commit** Worker вызывает `ConsumeContext.RespondAsync<TSuccess>(...)` для ожидающего API. API возвращает данные Worker в HTTP-ответе. Документация не задаёт фиксированный успешный HTTP status; важно именно дождаться результата.
+6. При ожидаемом domain reject Worker отвечает `TFailure`; при техническом исключении MassTransit посылает fault. API сопоставляет их с корректным HTTP статусом.
+7. Если Worker также должен уведомить Realtime, публикует **дополнительное** `...Completed` событие после фиксации; outbox по необходимости. Это не замена response.
+8. Если истёк timeout, API возвращает согласованную ошибку ожидания, а Worker может ещё работать. Повтор клиента — **тот же** OperationId, а не новая незащищённая запись.
 
-**Важно:** `[Authorize]` и FluentValidation в API не гарантируют проверку существования сущности, роли, конкурентного состояния, уникальности — это отвечает Worker и ограничения PostgreSQL.
+В стандартной схеме `CreateTask` API ждёт итоговый ответ от Worker. Не заменяй ожидание выдачей JobId/подтверждения очереди; другая модель возможна только при отдельном изменении требований.
 
-## Как получать данные для HTTP GET
+## GET/Query
 
-API не открывает соединение к PostgreSQL. Для короткого запроса допустим `IRequestClient<Get...Query>` / `GetResponse<Get...Response>` через MassTransit к Worker с явным timeout и обработкой недоступности. Для долгих запросов — асинхронное JobId/status API через Worker; read-model в другом сервисе возможен лишь после отдельного архитектурного решения. В ответах/сообщениях только DTO, без EF entities и IQueryable.
+Для чтения API также отправляет MassTransit request Worker с timeout и возвращает DTO после response. Бизнес-БД не читается из API. `IQueryable`/EF entities не переходят в контракты.
 
-## Что сейчас НЕ соответствует целевой архитектуре
+## Текущее состояние Tasks и проблемы
 
-- `backend/src/Api/Features/Weather/Application/CreateForecast/Handler.cs` в действительности вызывает `IWeatherRepository.AddAsync()` и `IUnitOfWork.SaveChangesAsync()` **из API**, а потом публикует `ForecastCreatedEvent`. Это демонстрационный legacy flow, не образец для новых фич.
-- `backend/src/Api/Infrastructure/Persistence/*` содержит API `KabanDbContext`; подключение к PostgreSQL регистрируется в `backend/src/Api/Program.cs`. **Не расширяй** этот код новым доменом; переносить существующий Weather следует отдельным PR.
-- `backend/src/Worker/Features/Weather/ForecastCreatedConsumer.cs` только логирует событие. Рабочего Worker-side DbContext/DI/миграций ещё нет.
-- `backend/Database` — экспериментальный проект, пока не включён в solution. Можно подключить его **только к Worker** после аудита моделей, EF mapping и миграций; не расшаривать его context через API.
-- `Realtime` пока не реализован; не описывать SignalR как работающий.
+Сейчас есть `IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>` в API, `IConsumer<TaskCreateEvent>` в Worker и `SaveChangesAsync -> RespondAsync<TaskCreateSuccess>` в consumer, а `KabanDatabaseContext` зарегистрирован в Worker. Это **уже соответствует главному пути исполнения**. Но:
 
-## Пошаговая миграция Weather в отдельной задаче
+- Worker импортирует `Contracts.Tasks`, хотя contract определён в `Contracts.Features.Tasks`.
+- Worker ссылается на `Contracts.dll` через `HintPath` из Debug-каталога API вместо `ProjectReference`.
+- API зарегистрировал ValidationBehavior, но **нет FluentValidation-validator CreateTask и его регистрации**.
+- `CreatedAtAction(nameof(Create))` не указывает на существующий GET-by-id endpoint.
+- Docker Compose передаёт адрес БД в API, а не в Worker; Worker использует localhost из `appsettings.json`, который внутри контейнера не указывает на postgres service.
+- Не показаны идемпотентность, явная timeout config и корректная классификация всех faults.
 
-1. Утвердить `CreateForecastRequested(JobId, Date, TemperatureC, Summary, ActorId?)` в Contracts; `ActorId` только из проверенного контекста API, его права повторно проверяет Worker.
-2. Перенести EF entity mapping/repository/DbContext/DI и подключение БД в Worker (или Worker-only library); добавить Worker migrations и тесты на PostgreSQL.
-3. Добавить `CreateForecastRequestedConsumer` с проверкой входа, DB-правил, дедупликацией `JobId` и записью прогноза; при необходимости publish результата после commit/outbox.
-4. Переписать API `CreateForecastHandler`: FluentValidation → Send → `202 Accepted + JobId`, убрать `IWeatherRepository`, `IUnitOfWork` и DB DI из новой операции.
-5. Для `GET /api/weather` и `GET /api/weather/{id}` добавить запрос Worker через RabbitMQ request/response; обновить контроллер, тесты и Swagger. Не ломать текущие HTTP-контракты без решения команды.
-6. Удалить или изолировать legacy Weather persistence API после перехода; обновить `.csproj`, Compose env, документацию и тесты. **Не удалять БД/volumes**.
+Это **зафиксированные проблемы**, а не изменения выполненного C#-кода. При отдельном рефакторинге чинить по одной границе с тестами и не удалять данные БД.
 
-## Проверки перед PR с кодом
+## Готовность
 
-- `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`.
-- В API handler-ах новой фичи **нет** `DbContext`/EF/`SaveChanges` и dependency на DB. Проверить `Program.cs` и конфигурацию Compose — API не получает строку подключения к БД для новой фичи, Worker получает.
-- HTTP невалидный → FluentValidation ошибка и **нет сообщения в MQ**; валидный → Request/Command в RabbitMQ; Worker меняет БД ровно один раз при дубле; проблемы DB/retry/stop/restart корректны; GET читает через Worker.
-- Подтверждено `202` (постановка) и отдельно `Completed` (эффект); не утверждать exactly-once и готовность Realtime без фактических тестов.
+Успешная интеграционная проверка должна подтвердить: валидация API → request; Worker commit до reply → API получает Id в HTTP DTO; отсутствие Worker/DB/брокера → ожидаемая ошибка/timeout; повтор с тем же OperationId не дублирует запись; отдельное событие публикуется только когда действительно нужно. Тестировать с реальными RabbitMQ и PostgreSQL, не предполагать exactly-once.
 
-См. также `docs/MESSAGING.md`, `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`, `AGENTS.md` и сервисные `AGENTS.md`.
+Подробности — `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.

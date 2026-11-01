@@ -1,174 +1,93 @@
-# Kaban: взаимодействие сервисов через RabbitMQ
+# Kaban — RabbitMQ/MassTransit: API ждёт результат Worker
 
-> Проверено по `Kitiketov/Kaban`, `main`, tree SHA `3f128e84877ad96769594c329efcbab265ffe8f2` (2026-11-01). **Текущее Weather-поведение и целевая архитектура различаются**. Ниже это отражено явно.
+> Актуализировано по `Kitiketov/Kaban` `main`, commit `f6b110e9f2d59efc6251060a9ab9680202d24722`, 2026-11-01. Здесь отдельно отмечены **проверенный код**, **принятая архитектура** и **недочёты**.
 
-## Целевая граница: БД принадлежит Worker
-
-Для **новых фич** обязательная схема:
+## Обязательный сценарий для коротких операций
 
 ```text
-HTTP client
-    │ request JSON
-    ▼
-API: Controller → MediatR Command → FluentValidation
-    │ (формат/поля/диапазоны; авторизация без прямого чтения БД)
-    │ Send(...Requested, JobId) через MassTransit
-    ▼
-RabbitMQ: worker-owned durable queue / receive endpoint
-    ▼
-Worker: IConsumer<TRequested>
-    │ проверка дубликата, бизнес-правил и прав по данным БД
-    │ Worker Application/Domain → Worker Repository/DbContext → PostgreSQL
-    │ commit результата и статуса JobId
-    │ optional Publish(...Completed / ...Failed)
-    ▼
-Realtime (после реализации): SignalR уведомление адресату
+Client: POST /api/tasks
+  |
+  v
+API: TaskController.Create -> IMediator.Send(CreateTaskCommand)
+  | FluentValidation (зарегистрированный validator для Command)
+  v
+API: IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>(request, ct)
+  |                              [ожидает; есть конечный timeout]
+  v
+RabbitMQ -> Worker: TaskCreateConsumer : IConsumer<TaskCreateEvent>
+  |  проверить business rules и дубликаты
+  |  сохранить Tasks через KabanDatabaseContext/PostgreSQL
+  |  SaveChangesAsync (успех / commit)
+  v
+Worker: context.RespondAsync<TaskCreateSuccess>({ TaskId })
+  |
+  v
+API: получить ответ, собрать TaskCreateResponseDto
+  |
+  v
+Client: HTTP-ответ с данными Worker (включая TaskId)
 ```
 
-**Ни одно новое создание/изменение/чтение бизнес-данных не должно происходить из API через EF Core или SQL.** API отвечает за HTTP, проверку входных данных через `FluentValidation` в MediatR `ValidationBehavior`, авторизацию на основании доверенных claims и отправку сообщения. Worker владеет EF Core, PostgreSQL, миграциями, репозиториями, Unit of Work, проверками бизнес-инвариантов и идемпотентностью. Проверки, требующие БД, **нельзя** подменять только формальной FluentValidation в API.
+**Ключевое правило:** API не завершает HTTP-запрос сразу после отправки сообщения; он ждёт ответа Worker либо истечения тайм-аута. Обработка физически идёт в отдельном процессе Worker. Для чтения данных используется тот же request/response, а не прямой доступ API к БД. **Схема обмена не предписывает конкретные HTTP-коды успеха.**
 
-Для чтения HTTP GET: при единственном владельце БД API отправляет `...Query` в Worker и ожидает `...Response` через MassTransit request/response с конечным timeout, либо команда явно согласует асинхронную модель статуса/результата. Не вводи API read-repository без изменения архитектурного решения.
+### Что значит «Worker публикует результат»
 
-**Статус:** это целевая архитектура, **она ещё не реализована в текущем Weather**. Порядок безопасного переноса описан в `docs/WORKER_DATABASE_BOUNDARY.md`.
+- Для **ожидающего запроса API** в существующей архитектуре применяется `RespondAsync<TSuccess>` в Worker и `GetResponse<TSuccess>` в API. MassTransit возвращает ответ на reply address и связывает его с request автоматически. Это **request/response**.
+- `IPublishEndpoint.Publish<TCompleted>` — **публикация события** всем подписчикам, например будущему Realtime. Она **не** вызывает завершение `IRequestClient.GetResponse<TSuccess>`; подменять ответ публикацией нельзя.
+- Если нужен и ответ клиенту, и событие: **Worker сохраняет в БД → отвечает API через RespondAsync → отдельно публикует Completed event** (или сначала надёжно фиксирует outbox и выпускает событие, затем отвечает). Протокол публикуемого события не должен зависеть от того, держит ли HTTP-клиент соединение.
+- Не заводи in-memory словарь `TaskCompletionSource`, подписку на произвольный `Publish` внутри контроллера или глобальный state только одного экземпляра API. Это ломается на нескольких API replicas, рестартах и гонках. Если команда отдельно требует ожидания именно *broadcast event*, нужна самостоятельная durable correlation архитектура; default проекта — MassTransit request/response.
 
-## Состав solution и владельцы ответственности
+## Что реально есть в `main`
 
-| Компонент | Проект | Реальная роль на указанном commit |
-| --- | --- | --- |
-| API | `backend/src/Api/Api.csproj` | Сейчас Weather использует EF Core + публикует событие; **цель для новых фич:** HTTP/MediatR/FluentValidation и отправка заданий без БД |
-| Worker | `backend/src/Worker/Worker.csproj` | Пока MassTransit consumer только логирует Weather; **цель:** выполняет задания и владеет PostgreSQL |
-| Realtime | `backend/src/Realtime/Realtime.csproj` | Отдельный host с health endpoints; SignalR и RabbitMQ обработчиков **пока нет** |
-| Contracts | `backend/Contracts/Contracts.csproj` | Общие контракты сообщений, **библиотека, не четвёртый микросервис** |
-| Database | `backend/Database/Database.csproj` | Экспериментальная модель, пока не подключена к Worker и не в solution; для целевой архитектуры её можно адаптировать как Worker-only библиотеку |
-| Frontend | `frontend/` | Статический клиент; Nginx проксирует `/api/` в API; маршрута `/hubs/` пока нет |
-
-Три микросервиса — **три независимо запускаемых процесса**. Количество проектов в solution больше трёх, это нормально. Worker **не** должен ссылаться на сборку API или импортировать `Kaban.Api.Infrastructure.Persistence.KabanDbContext`. Общая библиотека Contracts содержит только транспортные сообщения; всё остальное принадлежит конкретному сервису.
-
-## Что работает в коде сейчас: событие о созданном прогнозе
-
-```text
-POST /api/weather
-    |
-    v
-WeatherController
-    | IMediator.Send(CreateForecastCommand)
-    v
-CreateForecastHandler
-    | IWeatherRepository.AddAsync
-    | IUnitOfWork.SaveChangesAsync -> PostgreSQL
-    | IPublishEndpoint.Publish(ForecastCreatedEvent)
-    v
-RabbitMQ (MassTransit publish exchange по типу сообщения)
-    |
-    v
-Worker: ForecastCreatedConsumer : IConsumer<ForecastCreatedEvent>
-    | Consume(...): запись в ILogger, затем успешное завершение
-    v
-[настоящей фоновой работы/сохранения результата пока нет]
-
-Realtime: [не подключён к этому потоку]
-```
-
-**Конкретные файлы:**
-- API DI/шина: `backend/src/Api/Program.cs` — `AddMassTransit`, `UsingRabbitMq`.
-- Создание: `backend/src/Api/Features/Weather/Presentation/WeatherController.cs` → `Application/CreateForecast/Handler.cs`.
-- Контракт: `backend/Contracts/Weather/ForecastCreatedEvent.cs`: `Date`, `TemperatureC`, `Summary` (нет `ForecastId`/`JobId`).
-- Worker DI/шина: `backend/src/Worker/Program.cs` — `AddConsumer<ForecastCreatedConsumer>()`, `cfg.ConfigureEndpoints(context)`.
-- Consumer: `backend/src/Worker/Features/Weather/ForecastCreatedConsumer.cs` — **только логирование**.
-- Realtime: `backend/src/Realtime/Program.cs` — только health endpoints.
-
-**Важно про RabbitMQ «топики»:** текущая интеграция не задаёт `ExchangeType.Topic` и routing keys вручную. MassTransit публикует в exchange по **типу сообщения**, а `ConfigureEndpoints(context)` поднимает receive endpoint и необходимые привязки для consumer. В RabbitMQ MassTransit по умолчанию использует **fanout exchange**, а не `topic` exchange. Не придумывай фиксированные названия очереди или topic/routing key: в коде их нет. При необходимости явных имён/маршрутизации конфигурируй и документируй их отдельным изменением. Наличие producer без существующей consumer binding не гарантирует, что событие будет сохранено до запуска Worker.
-
-### Ограничения текущей реализации
-
-1. API **сам выполняет** создание прогноза и сохранение в PostgreSQL. Worker не создаёт прогноз — он **узнаёт о совершившемся событии**. Это event notification, а не фоновая команда. **Не продолжай этот паттерн для новых API-фич.**
-2. API вызывает `SaveChangesAsync()` и **только потом** `Publish()`. Между ними нет атомарности: сохранение может пройти, публикация — упасть. **Transactional outbox пока не настроен.**
-3. В примере нет бизнес-идемпотентности, явного retry/redelivery policy, fault handling / мониторинга ошибок и persist результата Worker. Не заявляй exactly-once.
-4. В Realtime нет SignalR Hub, Kafka/RabbitMQ consumer, JWT-конфигурации или отправки клиентам.
-5. `/health/live` и `/health/ready` сейчас **не подтверждают** наличие активного RabbitMQ consumer или успешного подключения к БД.
-6. В `docker-compose.yml` credentials заданы для локальной разработки. В production — только переменные окружения/секреты. Подключение с хоста: RabbitMQ `localhost:5672`, с контейнера: `rabbitmq:5672`. PostgreSQL с хоста `localhost:55432`, из сети compose `postgres:5432`.
-
-## Как реализовывать новые фоновые задачи: API даёт задание, Worker выполняет
-
-**Это проектное правило для следующих фич, не реализованный в репозитории код.** Сначала определи «что является работой» и кто владеет её результатом. Нельзя автоматически считать `ForecastCreatedEvent` подходящим командным контрактом.
-
-### Рекомендуемый сценарий
-
-```text
-Client → POST /api/.../jobs
-  → Api/Presentation: HTTP DTO
-  → Api/Application: MediatR Command + FluentValidation
-  → MassTransit Send(...Requested, JobId) → RabbitMQ
-  → Worker Consumer: состояние БД, авторитетные бизнес-правила,
-      идемпотентность, запись данных/статуса в Worker-owned PostgreSQL
-  → optional Publish(...Completed/...Failed) → Realtime
-Client ← 202 Accepted, JobId (после успешной отправки)
-```
-
-**API не создаёт записи Job/outbox в PostgreSQL.** Существующее `SaveChangesAsync` в API — только старый Weather-пример, не образец для новых задач. `202` подтверждает приём/отправку задания на выбранной границе, но не то, что Worker уже завершил работу или записал статус; определите отдельно semantics durably accepted, наличие записи и endpoint статуса.
-
-Если требуется гарантировать, что `JobId` уже сохранён в БД прежде чем вернуть 202, используйте короткое подтверждение от Worker после создания записи Job, например request/response, с тайм-аутом и явной обработкой недоступности Worker. Это **не** ожидание всей фоновой обработки. Если передача сообщения не удалась, возвращайте подходящую ошибку (например 503), а не фиктивный успех.
-
-### Command vs event; Send vs Publish
-
-- `...Requested` / `Process...` — **задание с одним владельцем**. Если один конкретный Worker отвечает за работу, предпочитай адресное `Send` к **явно названному worker receive endpoint**. Это нужно отдельно настроить в Worker и записать в документацию. Допустима схема `Publish` при одном подписчике, но при добавлении ещё одного подписчика событие обработается каждым подписчиком.
-- `...Created`, `...Completed`, `...Failed` — **факты**, уже произошедшие в системе. Для них обычно подходит `IPublishEndpoint.Publish`, который позволяет нескольким заинтересованным потребителям получить копию события.
-- `ForecastCreatedEvent` сейчас относится к **второму** типу: задача сохранения выполнена API, Worker наблюдает результат.
-- Не превращай `ForecastCreatedEvent` в команду только за счёт изменения названия consumer. Согласуй новый контракт по семантике сценария.
-
-### Требования к контракту нового задания
-
-- Название: `GenerateReportRequested`, `ProcessTaskRequested` и т.п. **по настоящей предметной операции**.
-- Содержимое: стабильный `JobId` (`Guid`) для учёта работы; необходимые идентификаторы и аргументы; время события/версия при необходимости. Используй `ConsumeContext.MessageId`/`CorrelationId` как transport metadata, а `JobId` — как бизнес-ключ повторной обработки.
-- Не сериализуй EF entity, `DbContext`, HTTP request DTO, токены, пароли и секреты.
-- Статус задания и прикладные таблицы принадлежат Worker. API не ведёт свою таблицу Job и не читает таблицы Worker напрямую; запрос состояния направляется Worker через контракт.
-- Контракты версионируй совместимо: при изменении полей учитывай старых consumers; существенные breaking changes согласовывай и тестируй обе стороны.
-
-### Надёжность
-
-- В новой схеме API не делает DB commit. При сохранении результатов и публикации `...Completed`/`...Failed` **в Worker** используй transactional outbox (при требованиях к надёжности), чтобы результат и событие не расходились. Текущий `SaveChanges` затем `Publish` в API — несогласованный legacy Weather, не копировать.
-- Worker, владелец БД, должен быть **идемпотентен**: RabbitMQ/MassTransit могут доставить сообщение повторно. Проверяй `JobId` и атомарно фиксируй состояние выполненной работы.
-- Исключения consumer не глоти: вызывай их наружу, чтобы MassTransit мог обработать ошибку. Разделяй временные и постоянные сбои; настраивай ограниченный retry/redelivery и анализируй `_error` очереди. Не выполняй бесконечные повторения.
-- Логируй `JobId`/correlation, тип сообщения, длительность и результат; **не** логируй секреты и чувствительные данные. Оповещение клиента отправляй только после подтверждения успешного результата.
-- Прежде чем говорить «работает», проверь: начало/конец, отрицательные сценарии, повторную доставку, отсутствие Worker, отказ RabbitMQ, корректность DI и временных ограничений. Отдельно покрой Outbox/Consumer integration tests.
-
-## Куда вносить изменения: чек-лист агента
-
-| Задача | Изменяемая область |
+| Участник | Реализация |
 | --- | --- |
-| Новый HTTP endpoint | `Api/Features/<Feature>/Presentation` |
-| Прикладная операция | `Api/Features/<Feature>/Application/<Operation>`: `Command.cs`/`Query.cs`, `Handler.cs`, `Validator.cs` |
-| Схема сообщения | `backend/Contracts/<Feature>` и тест совместимости контракта |
-| API → MQ | Прикладной handler/адаптер из API (не контроллер и не доменная сущность) + API DI в `Program.cs`/регистрации |
-| Worker принимает задание | `Worker/Features/<Feature>/*Consumer.cs` + `Worker/Program.cs` (AddConsumer/ReceiveEndpoint/ConfigureEndpoints) |
-| Worker делает работу и работает с БД | Worker Application/Domain + Worker-owned EF Core DbContext/Repository/UoW и миграции, без ссылки на `Api.csproj` |
-| HTTP GET получает данные | API request client → `...Query` → Worker EF query → `...Response`, конечный timeout |
-| Результат → клиент | Новый message contract, Реaltime consumer + авторизованный SignalR hub; пока **не реализовано** |
-| Изменяется топология/сценарий | Обновить `docs/MESSAGING.md` и относящиеся `AGENTS.md` |
+| API HTTP | `backend/src/Api/Features/Tasks/Presentation/TaskController.cs`, `POST /api/tasks` |
+| API MediatR | `Features/Tasks/CreateTask/Command.cs`, `Handler.cs`, `IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>` |
+| API transport DI | `Api/Program.cs`: `AddRequestClient<TaskCreateEvent>()`, `UsingRabbitMq` |
+| Контракты | `backend/src/Contracts/Features/Tasks/TaskCreateEvent.cs`, `TaskCreateSuccess.cs`; namespace `Contracts.Features.Tasks` |
+| Worker transport DI | `Worker/Program.cs`: `AddConsumer<TaskCreateConsumer>()`, `UsingRabbitMq`, `ConfigureEndpoints(context)` |
+| Worker DB | `Worker/Infrastructure/Database/Program.cs`: `KabanDatabaseContext`; `Worker/Program.cs`: `AddDbContext(...UseNpgsql)` |
+| Worker обработчик | `Worker/Features/Tasks/TaskCreateConsumer.cs`: `AddAsync` -> `SaveChangesAsync` -> `RespondAsync<TaskCreateSuccess>` |
+| Realtime | Пока только health; SignalR/MQ consumers отсутствуют |
 
-## Как проверить нынешний пример
+**Терминологический нюанс:** `TaskCreateEvent` в текущем коде по смыслу *запрос на создание*, а не публичное событие о завершении. Для новых контрактов называй request `CreateTaskRequested`/`...Command`; при переименовании текущего типа учитывай двустороннее изменение namespaces, wiring и совместимость.
 
-Из корня репозитория с работающим Docker Desktop:
+### Известные несогласованности, которые агент должен проверить
 
-```powershell
-docker compose up -d --build postgres rabbitmq worker api
-docker compose ps
-# затем POST /api/weather, например через Swagger на http://localhost:5080/swagger
-docker compose logs -f worker
-```
+1. Worker использует `using Contracts.Tasks`, а реальный контракт находится в `namespace Contracts.Features.Tasks`. Без согласованного namespace/ссылки consumer и API не смогут корректно работать с одним типом.
+2. `Worker.csproj` содержит `<Reference Include="Contracts"><HintPath>..\Api\bin\Debug\net10.0\Contracts.dll</HintPath>` вместо нормального `<ProjectReference Include="..\Contracts\Contracts.csproj" />`.
+3. `Api/Common/ApplicationRegistration.cs` подключает MediatR и `ValidationBehavior`, **но не сканирует/регистрирует FluentValidation validators**; валидатора `CreateTaskCommand` нет. Поэтому реальная API-валидация CreateTask не реализована, хотя pipeline есть.
+4. `TaskController.Create` вызывает `CreatedAtAction(nameof(Create))`, но GET-by-ID route отсутствует; при отдельной правке HTTP-контроллера проверить маршрут, не копировать этот вызов как обязательный шаблон.
+5. `docker-compose.yml` не задаёт Worker `ConnectionStrings__DefaultConnection`. Локальный `Worker/appsettings.json` указывает на `localhost:55432`, что неверно внутри Worker Docker-контейнера; нужно `postgres:5432`, сетевой Compose доступ и правильные dependency/health проверки.
+6. В коде нет явно заданного общего request timeout, transport/application idempotency key, inbox/outbox, полноценных типизированных business errors и гарантированной проверки повторов. Не утверждай, что они реализованы.
 
-Ожидаемое поведение: API сохраняет прогноз и публикует `ForecastCreatedEvent`; Worker пишет лог о получении события. **Не ожидай** от него создания дополнительной сущности или обновления клиента через SignalR. Запуск API в профиле `Production` может не создать учебную таблицу Weather (`EnsureCreated` привязан к Development). 
+## Тайм-аут, ошибки и повторное выполнение
 
-Проверка логов RabbitMQ Management: `http://localhost:15672` с dev-учётной записью из compose/env. Смотри реальные queues/exchanges/bindings, а не предполагаемые названия. При нарушении конфигурации проверяй `RabbitMq:Host/Username/Password` и сетевой адрес (локальный хост vs Docker). Не используй `docker compose down -v`: это удалит данные PostgreSQL и RabbitMQ.
+- Выбери конечный **настраиваемый** request timeout (dev-пример 30 сек; это пример, не текущая конфигурация) и передавай HTTP `CancellationToken`. Убедись, что timeout API/прокси согласован с бюджетом операции.
+- `RequestTimeoutException`: API не получил Worker response вовремя. Возвращай документированную ошибку ожидания с безопасным ProblemDetails, **не** выдавай подтверждение отправки за выполненную работу. На текущем main exception handler использует 503, но это не настраивает тайм-аут само по себе.
+- **Timeout не равен отмене операции.** Запрос мог остаться в очереди, Worker мог завершить запись в БД и ответить уже после того, как API перестал ждать. Поэтому мутация должна нести стабильный `OperationId`/idempotency key и Worker должен атомарно дедуплицировать и уметь повторно выдать результат.
+- При ожидаемой бизнес-ошибке возвращай typed reply `NotFound`/`Conflict`/`Forbidden` и переводи его в правильный HTTP статус. Не кидай обычные domain errors просто ради HTTP 400 для всех.
+- Техническое исключение consumer -> MassTransit `Fault<TRequest>` -> `RequestFaultException` в API. **Не** маскируй любую инфраструктурную аварию под 400; текущий handler для Fault так делает и требует доработки.
+- Для Worker: limited retry/redelivery, `_error` queue, логирование correlation ID, outbox для согласования DB commit и дополнительного `Publish`, тесты на дубли. Никакой магии exactly-once.
 
-## Источники в репозитории
+## Как формируется ответ клиенту
 
-- `backend/src/Api/Features/Weather/Application/CreateForecast/Handler.cs`
-- `backend/src/Api/Program.cs`
-- `backend/src/Worker/Program.cs`
-- `backend/src/Worker/Features/Weather/ForecastCreatedConsumer.cs`
-- `backend/Contracts/Weather/ForecastCreatedEvent.cs`
-- `backend/src/Realtime/Program.cs`
-- `backend/Kaban.sln`, `docker-compose.yml`
+- **Успешная операция:** API получает `TaskCreateSuccess` от Worker, извлекает `TaskId`, формирует `TaskCreateResponseDto` и возвращает DTO клиенту. Не выбирай HTTP success code исходя из самого факта использования брокера; это независимая деталь HTTP-контракта.
+- **Невалидный ввод:** FluentValidation отклоняет запрос до RabbitMQ и возвращается ошибка валидации.
+- **Бизнес-отказ Worker:** типизированный ответ об отсутствии данных, запрете или конфликте; API преобразует его в согласованный HTTP-ответ без маскировки под технический сбой.
+- **Fault/timeout:** отдельная ошибка API; запрещено возвращать успешный DTO, если Worker не подтвердил результат.
+- **Дополнительное событие:** `Publish<TCompleted>` служит подписчикам, не является ответом, который ожидает `GetResponse`.
 
-Поведение exchange/receive endpoint по умолчанию: официальная документация MassTransit по RabbitMQ — https://masstransit.io/documentation/configuration/transports/rabbitmq .
+В текущем `TaskController` используется `CreatedAtAction(nameof(Create))`; это реальная деталь исходного кода, **не правило для новых контроллеров**. В рамках этой документации HTTP-контракт и C#-контроллер не меняются.
+
+## Топология и инфраструктура
+
+`IRequestClient<T>` по умолчанию публикует request и ждёт ответ на response endpoint MassTransit; ожидается **один логический тип обработчика**, а несколько Worker-инстансов одной очереди балансируют запросы. Можно указать явный endpoint/адрес для направленного request. Не выдумывай RabbitMQ topic-routing keys или ручные exchange names: `cfg.ConfigureEndpoints(context)` использует соглашения MassTransit.
+
+В Docker: API подключается к `rabbitmq:5672`; Worker — к `rabbitmq:5672`, PostgreSQL — к `postgres:5432`; с Windows-хоста брокер доступен по `localhost:5672`, PostgreSQL — `localhost:55432`, management — `localhost:15672`. Смотри актуальный `docker-compose.yml` прежде чем давать команды. Не запускай `docker compose down -v`.
+
+## Проверка изменения фичи
+
+Из корня: `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`, `docker compose config --quiet` при изменении Compose. Интеграционный сценарий: неверный input не попал в MQ, успешный POST ждал commit Worker и получил ID, бизнес-ошибка, технический fault, Worker недоступен, timeout + поздняя запись, повтор с тем же idempotency key, публикация отдельного события (если реализована). Фактически выполненные проверки отделяй от предложенных.
+
+Официальное описание MassTransit request/response: https://masstransit.io/documentation/concepts/requests
