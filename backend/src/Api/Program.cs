@@ -6,6 +6,12 @@ using MassTransit;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.Configure(options =>
+    options.ActivityTrackingOptions = ActivityTrackingOptions.TraceId
+        | ActivityTrackingOptions.SpanId
+        | ActivityTrackingOptions.ParentId);
+builder.Logging.AddConsole(options => options.IncludeScopes = true);
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
