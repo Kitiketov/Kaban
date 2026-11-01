@@ -1,6 +1,4 @@
-﻿using Database;
-using Database.Domain;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Kaban.Worker.Infrastructure.Database.Domain;
