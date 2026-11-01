@@ -16,4 +16,7 @@
   <ItemGroup>
     <Folder Include="Infrastructure\" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Contracts\Contracts.csproj" />
+  </ItemGroup>
 </Project>
