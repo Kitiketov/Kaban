@@ -1,8 +1,10 @@
 // Отдельный запускаемый сервис. RabbitMQ-консьюмеры и фоновые задания
 // команда добавит позже самостоятельно.
 
-using Kaban.Worker.Features.Weather;
+using Kaban.Worker.Features.Tasks;
+using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHealthChecks();
@@ -11,9 +13,11 @@ builder.Logging.Configure(options =>
         | ActivityTrackingOptions.SpanId
         | ActivityTrackingOptions.ParentId);
 builder.Logging.AddConsole(options => options.IncludeScopes = true);
+builder.Services.AddDbContext<KabanDatabaseContext>(
+    opt => opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
     {
-        x.AddConsumer<ForecastCreatedConsumer>();
+        x.AddConsumer<TaskCreateConsumer>();     
 
         x.UsingRabbitMq((context, cfg) => 
         { 
