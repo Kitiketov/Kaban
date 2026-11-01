@@ -1,4 +1,3 @@
-using FluentValidation;
 using Kaban.Api.Common.Validation;
 using MediatR;
 

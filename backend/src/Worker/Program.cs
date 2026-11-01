@@ -10,8 +10,12 @@ builder.Logging.Configure(options =>
         | ActivityTrackingOptions.SpanId
         | ActivityTrackingOptions.ParentId);
 builder.Logging.AddConsole(options => options.IncludeScopes = true);
+builder.Services.AddDbContext<KabanDatabaseContext>(
+    opt => opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
     {
+        x.AddConsumer<TaskCreateConsumer>();     
+
         x.UsingRabbitMq((context, cfg) => 
         { 
             var configuration = context.GetRequiredService<IConfiguration>();

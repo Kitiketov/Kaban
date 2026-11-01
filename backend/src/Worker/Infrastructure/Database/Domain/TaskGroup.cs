@@ -24,10 +24,9 @@ public class Tasks : ITable
     public required string Name { get; set; }
     public string? Description { get; set; }
     public PriorityEnum Priority { get; set; } = PriorityEnum.NoPriority;
-    public required DateOnly Created { get; set; }
+    public DateOnly Created { get; set; }
     public DateOnly? Deadline { get; set; }
     public required int TaskOrder { get; set; }
-
     public int BoardColumnId { get; set; }
     public BoardColumns? BoardColumn { get; set; }
 }
@@ -50,7 +49,9 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
             .HasDefaultValue(PriorityEnum.NoPriority)
             .IsRequired();
         builder.Property(x => x.Created)
-            .HasColumnName("task_created").IsRequired();
+            .HasColumnName("task_created")
+            .HasDefaultValueSql("CURRENT_DATE")
+            .IsRequired();
         builder.Property(x => x.Deadline)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.Deadline)));
         builder.Property(x => x.TaskOrder)

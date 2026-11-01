@@ -1,3 +1,4 @@
+using Contracts.Features.Tasks;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using MassTransit;
@@ -8,19 +9,19 @@ builder.Logging.Configure(options =>
     options.ActivityTrackingOptions = ActivityTrackingOptions.TraceId
         | ActivityTrackingOptions.SpanId
         | ActivityTrackingOptions.ParentId);
-builder.Logging.AddConsole(options => options.IncludeScopes = true);
+builder.Logging.AddConsole();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
+builder.Services.AddCustomExceptionHandlers();
 builder.Services.AddHealthChecks();
 
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
-
 builder.Services.AddMassTransit(x =>
 {
+    x.AddRequestClient<TaskCreateEvent>(); 
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();
@@ -46,5 +47,6 @@ app.UseExceptionHandler();
 app.MapControllers();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
+
 
 app.Run();
