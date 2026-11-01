@@ -1,7 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Database;
+using Database.Domain;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Database.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Domain;
 
 public class Users : ITable
 {

@@ -1,8 +1,9 @@
-﻿using Database.Domain;
+﻿using Database;
+using Database.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 
-namespace Database.Application;
+namespace Kaban.Worker.Infrastructure.Database.Application;
 
 public interface IRecordWriter
 {

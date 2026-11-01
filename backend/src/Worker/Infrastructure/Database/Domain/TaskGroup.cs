@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using Kaban.Worker.Infrastructure.Database.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
