@@ -8,8 +8,12 @@ public class ForecastCreatedConsumer(ILogger<ForecastCreatedConsumer> logger) : 
     public Task Consume(ConsumeContext<ForecastCreatedEvent> context)
     {
         var message = context.Message;
-        logger.LogInformation($"Handel event ${typeof(ForecastCreatedEvent)} " +
-        $": {message.Date} {message.Summary} {message.TemperatureC}");
+        logger.LogInformation(
+            "Handled event {EventType}: {Date} {Summary} {TemperatureC}",
+            nameof(ForecastCreatedEvent),
+            message.Date,
+            message.Summary,
+            message.TemperatureC);
         return Task.CompletedTask;
     }
 }

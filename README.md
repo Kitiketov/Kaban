@@ -6,6 +6,10 @@
 
 ## Главное — где лежит код
 
+### Трассировка
+
+API, Worker и Realtime добавляют W3C `TraceId`/`SpanId` в консольные логи. Входящий HTTP `traceparent` подхватывается ASP.NET Core; `HttpClient` и MassTransit продолжают контекст при межсервисном вызове/сообщении. Логируйте через шаблоны `ILogger`, например `logger.LogInformation("Handled {EventType}", eventType)`, затем связывайте записи по `TraceId`. Для фоновой работы без входящего запроса создайте отдельный `Activity`. Экспорт трасс и метрики OpenTelemetry пока не подключены.
+
 ```text
 backend/src/Api/
 ├── Program.cs                       # Composition root; вызовы регистрации DI
