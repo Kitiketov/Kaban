@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Diagnostics;
 
 namespace Kaban.Api.Common.Exceptions;
 
-// Возвращает стандартный ValidationProblemDetails вместо HTTP 500.
 public sealed class ValidationExceptionHandler : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
@@ -12,7 +11,7 @@ public sealed class ValidationExceptionHandler : IExceptionHandler
         CancellationToken cancellationToken)
     {
         if (exception is not ValidationException validationException)
-            return false; // Для остальных исключений работает стандартный ProblemDetails.
+            return false;
 
         var errors = validationException.Errors
             .GroupBy(x => x.PropertyName)
