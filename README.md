@@ -52,7 +52,7 @@ backend/src/Api/
     └── PersistenceRegistration.cs     # подключения к PostgreSQL, DI UoW
 ```
 
-`Worker` и `Realtime` имеют собственные `.csproj`, `Program.cs`, Dockerfile и `/health/live`, `/health/ready`. В них **нет** Weather, RabbitMQ и SignalR-сценариев. Сообщения, топики, consumers/publishers и real-time обновления оставлены команде для изучения. Реализован только обычный HTTP + DB сценарий в API.
+`Worker` и `Realtime` имеют собственные `.csproj`, `Program.cs`, Dockerfile и `/health/live`, `/health/ready`. Теперь Worker получает `ForecastCreatedEvent` через RabbitMQ/MassTransit и логирует его, а API публикует событие после сохранения Weather в PostgreSQL. Realtime всё ещё не реализует SignalR/MQ; детали — `docs/MESSAGING.md`.
 
 ## Почему короткие имена файлов, но полные имена классов
 
@@ -128,7 +128,7 @@ docker compose up -d --build
 
 - `http://localhost:8080` — статическая демонстрационная страница (просто HTTP-клиент).
 - `http://localhost:5080/api/weather` — GET/POST Weather; `GET /api/weather/{id}`.
-- `http://localhost:5081/health/live` — Worker (пустой host).
+- `http://localhost:5081/health/live` — Worker host с подпиской на ForecastCreatedEvent (health не проверяет RabbitMQ).
 - `http://localhost:5082/health/live` — Realtime (пустой host).
 
 ```bash
@@ -138,7 +138,7 @@ curl -X POST http://localhost:5080/api/weather \
 curl http://localhost:5080/api/weather
 ```
 
-База для учебного Weather создаётся автоматически **только в Development** через `EnsureCreated`. При переносе на реальную доменную модель следует перейти на EF Core migrations, убрать инициализацию схемы из `Program.cs` и раздельно управлять миграциями. Docker Compose запускает PostgreSQL 16 и три host-проекта; связи между ними нет. При подключении к БД из Rider используйте `ConnectionStrings__DefaultConnection` или `appsettings.json` (локальный пример). Секреты для production вне репозитория.
+База для учебного Weather создаётся автоматически **только в Development** через `EnsureCreated`. При переносе на реальную доменную модель следует перейти на EF Core migrations, убрать инициализацию схемы из `Program.cs` и раздельно управлять миграциями. Docker Compose запускает PostgreSQL 16, RabbitMQ и три host-проекта; API публикует Weather event в RabbitMQ, Worker принимает и логирует его. Realtime к RabbitMQ не подключён. При подключении к БД из Rider используйте `ConnectionStrings__DefaultConnection` или `appsettings.json` (локальный пример). Секреты для production вне репозитория.
 
 У MediatR 14 могут появляться информационные предупреждения о лицензировании; перед развёртыванием проверьте условия использования выбранной версии.
 
@@ -148,3 +148,7 @@ curl http://localhost:5080/api/weather
 - `relation ... does not exist`: проверьте, что выбран профиль Api из `launchSettings.json` (окружение `Development`), затем перезапустите API.
 - `password authentication failed`: проверьте строку подключения и пароль существующей БД. Не удаляйте том для исправления пароля: он содержит данные.
 - Порт 5080 уже занят: остановите API в Docker или другой локальный экземпляр.
+
+## Текущая интеграция RabbitMQ (проверено по коду)
+
+В отличие от первоначального учебного шаблона, сейчас API подключён к RabbitMQ через MassTransit. При `POST /api/weather` API **сам сохраняет** прогноз, затем публикует `ForecastCreatedEvent`; Worker это событие принимает и **только логирует**. Realtime пока не использует SignalR/RabbitMQ. Полное описание сервиса, ограничения, правила новой модели «API поручает → Worker выполняет» и инструкции для агентов: [docs/MESSAGING.md](docs/MESSAGING.md), [AGENTS.md](AGENTS.md) и [локальный skill](.agents/skills/kaban-rabbitmq-workflow/SKILL.md).

@@ -72,7 +72,7 @@ Features/<Feature>/
 - Сохраняй маршруты/контракты, если задача не требует изменения. Создание возвращает 201 с Location; отсутствие ресурса — 404; FluentValidation — 400 ValidationProblemDetails через ValidationExceptionHandler.
 - Для новых ожидаемых ошибок определяй явное отображение, например конфликт состояния в 409. Не маскируй все исключения под 400/200 и не раскрывай stack trace, SQL и секреты клиенту.
 - Авторизации сейчас нет. При реализации Users/Tasks добавь проверку личности и прав на конкретный ресурс. Не доверяй UserId/OwnerId из тела; получай текущего пользователя из проверенного контекста через прикладную абстракцию.
-- Не отправляй RabbitMQ-сообщения прямо из controller или доменной сущности. При реализации messaging отдельно определи контракты и согласованность публикации с commit БД в docs/ARCHITECTURE.md.
+- Не отправляй RabbitMQ-сообщения прямо из controller или доменной сущности. В текущем Weather `CreateForecastHandler` после SaveChanges вызывает `IPublishEndpoint.Publish(ForecastCreatedEvent)`; это событие о завершённой API-работе, а не команда Worker. Для новых фоновых сценариев следуй `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`, используй `backend/Contracts` и учитывай outbox/идемпотентность.
 
 ## Проверки из корня репозитория
 
@@ -85,3 +85,10 @@ dotnet test backend/tests/Tests/Tests.csproj --filter FullyQualifiedName~CreateF
 - Последняя команда проверяет пример Weather; для других операций выбирай соответствующие тесты. Правила тестов находятся в backend/tests/AGENTS.md.
 - При изменении HTTP проверь успешный ответ, невалидный ввод и отсутствие ресурса; для авторизации — запрет доступа. EF-поведение проверяй на изолированном PostgreSQL: unit-тесты не проверяют SQL/constraints.
 - Сейчас есть только unit-тесты. Прямой вызов handler не проверяет DI, middleware и validation pipeline; для их изменений нужна отдельная интеграционная проверка.
+
+## API ↔ Worker: требования к новым асинхронным фичам
+
+- При переносе выполнения из API в Worker **не копируй** текущую последовательность Weather `SaveChanges -> Publish(ForecastCreatedEvent)` как команду. Она лишь сообщает о результате API. Для новой работы проектируй `...Requested` и consumer Worker, который выполняет сам эффект.
+- API хранит только HTTP DTO в Presentation, MediatR command/handler в Application, межсервисные контракты — в `backend/Contracts`. Отправка через MassTransit из handler или адаптера, не из controller и не из Domain.
+- Для долгой работы не блокируй HTTP: `202 Accepted` с `JobId`/URL состояния, если реализован статусный ресурс. Надёжность DB commit + публикации требует согласованного outbox (сейчас отсутствует).
+- Контракт должен позволять дедупликацию; не передавай API DbContext, EF Entities и секреты Worker. Вызовы API с зависимостями Worker не допускаются. Детали и проверочный сценарий — `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.

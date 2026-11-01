@@ -4,7 +4,7 @@
 
 HTTP request -> Controller -> mediator.Send(Command/Query) -> FluentValidation Behavior -> Handler -> IWeatherRepository / IUnitOfWork -> WeatherRepository / KabanDbContext -> PostgreSQL.
 
-**Worker** и **Realtime** — отдельные запускаемые сервисы с health endpoints. Они не подключены к RabbitMQ и не знают про Weather. Команда добавит свою интеграцию позже. Это 3 микросервиса в одном `.sln`, плюс 1 тестовый проект. Предполагается один монорепозиторий с отдельно расположенным `frontend/`.
+**Worker** и **Realtime** — отдельные запускаемые сервисы в одном `.sln` и монорепозитории с `frontend/`. **Текущий код:** API публикует `ForecastCreatedEvent` после сохранения Weather через MassTransit/RabbitMQ, Worker подписывается на него и только логирует; Realtime всё ещё имеет только health endpoints, без SignalR/MQ. Библиотека `Contracts` входит в solution, но не является микросервисом. Полный фактический поток, ограничения и правила передачи новой работы Worker — в [MESSAGING.md](MESSAGING.md).
 
 ## Трассировка запросов
 
