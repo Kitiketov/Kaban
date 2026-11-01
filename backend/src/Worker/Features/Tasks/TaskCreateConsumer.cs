@@ -1,4 +1,4 @@
-﻿using Contracts.Tasks;
+﻿using Contracts.Features.Tasks;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 

@@ -1,4 +1,4 @@
-﻿namespace Contracts.Tasks;
+﻿namespace Contracts.Features.Tasks;
 
 public sealed record TaskCreateEvent(
     string Name,
