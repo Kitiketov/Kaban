@@ -1,5 +1,6 @@
 ﻿using Contracts.Features.Tasks;
 using Kaban.Worker.Infrastructure.Database;
+using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
 
 namespace Kaban.Worker.Features.Tasks;
@@ -8,7 +9,6 @@ public class TaskCreateConsumer(
     KabanDatabaseContext dbContext,
     ILogger<TaskCreateConsumer> logger) : IConsumer<TaskCreateEvent>
 {
-    
     public async Task Consume(ConsumeContext<TaskCreateEvent> context)
     {
         var message = context.Message;
@@ -20,9 +20,11 @@ public class TaskCreateConsumer(
         var entityTask = new Infrastructure.Database.Domain.Tasks
         {
             Name = message.Name,
+            Created = DateTime.UtcNow,
+            Description = string.IsNullOrEmpty(message.Description) ? null : message.Description,
+            Deadline = message.Deadline == default ? message.Deadline : null,
             TaskOrder = message.Order,
-            Description = message.Description,
-            Deadline = DateOnly.FromDateTime(message.Deadline),
+            Priority = (PriorityEnum)message.Priority,
             BoardColumnId = message.ColumnId,
         };
         

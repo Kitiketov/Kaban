@@ -1,7 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace Database;
+namespace Kaban.Worker.Infrastructure.Database;
 
 public class KabanContextFactory : IDesignTimeDbContextFactory<KabanDatabaseContext>
 {

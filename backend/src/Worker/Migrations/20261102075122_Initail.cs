@@ -4,10 +4,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Database.Migrations
+namespace Kaban.Worker.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class Initail : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -180,15 +180,16 @@ namespace Database.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     name = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     description = table.Column<string>(type: "text", nullable: true),
-                    priority = table.Column<int>(type: "task_priority", nullable: false, defaultValue: 0),
-                    task_created = table.Column<DateOnly>(type: "date", nullable: false),
-                    deadline = table.Column<DateOnly>(type: "date", nullable: true),
+                    priority = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false, defaultValueSql: "'NoPriority'"),
+                    task_created = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
+                    deadline = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     task_order = table.Column<int>(type: "integer", nullable: false),
                     board_column_id = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_tasks", x => x.id);
+                    table.CheckConstraint("ck_tasks_priority", "\"priority\" IN ('NoPriority', 'Low', 'Medium', 'High', 'VeryHigh')");
                     table.ForeignKey(
                         name: "FK_tasks_board_columns_board_column_id",
                         column: x => x.board_column_id,
@@ -241,6 +242,30 @@ namespace Database.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "board_tags",
+                columns: table => new
+                {
+                    tag_id = table.Column<int>(type: "integer", nullable: false),
+                    board_id = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_board_tags", x => new { x.tag_id, x.board_id });
+                    table.ForeignKey(
+                        name: "FK_board_tags_boards_board_id",
+                        column: x => x.board_id,
+                        principalTable: "boards",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_board_tags_task_tags_tag_id",
+                        column: x => x.tag_id,
+                        principalTable: "task_tags",
+                        principalColumn: "id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_board_columns_board_id",
                 table: "board_columns",
@@ -251,6 +276,16 @@ namespace Database.Migrations
                 table: "board_columns",
                 columns: new[] { "board_id", "board_order" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_board_tags_board_id",
+                table: "board_tags",
+                column: "board_id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_board_tags_tag_id",
+                table: "board_tags",
+                column: "tag_id");
 
             migrationBuilder.CreateIndex(
                 name: "IX_boards_project_id",
@@ -336,7 +371,7 @@ namespace Database.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "task_tags");
+                name: "board_tags");
 
             migrationBuilder.DropTable(
                 name: "team_projects");
@@ -348,7 +383,7 @@ namespace Database.Migrations
                 name: "user_teams");
 
             migrationBuilder.DropTable(
-                name: "tasks");
+                name: "task_tags");
 
             migrationBuilder.DropTable(
                 name: "roles");
@@ -357,10 +392,13 @@ namespace Database.Migrations
                 name: "users");
 
             migrationBuilder.DropTable(
-                name: "board_columns");
+                name: "tasks");
 
             migrationBuilder.DropTable(
                 name: "teams");
+
+            migrationBuilder.DropTable(
+                name: "board_columns");
 
             migrationBuilder.DropTable(
                 name: "boards");
