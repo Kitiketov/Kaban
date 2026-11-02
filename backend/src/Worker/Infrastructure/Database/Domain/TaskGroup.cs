@@ -24,9 +24,10 @@ public class Tasks : ITable
     public required string Name { get; set; }
     public string? Description { get; set; }
     public PriorityEnum Priority { get; set; } = PriorityEnum.NoPriority;
-    public DateOnly Created { get; set; }
-    public DateOnly? Deadline { get; set; }
-    public required int TaskOrder { get; set; }
+    public DateTime Created { get; set; }
+    public DateTime? Deadline { get; set; }
+    public int TaskOrder { get; set; }
+
     public int BoardColumnId { get; set; }
     public BoardColumns? BoardColumn { get; set; }
 }
@@ -35,7 +36,12 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
 {
     public void Configure(EntityTypeBuilder<Tasks> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(Tasks)));
+        builder.ToTable(
+            TableExtensions.GetDatabaseName(nameof(Tasks)),
+            table => table.HasCheckConstraint(
+                "ck_tasks_priority",
+                "\"priority\" IN ('NoPriority', 'Low', 'Medium', 'High', 'VeryHigh')"
+            ));
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.Id))).ValueGeneratedOnAdd();
@@ -45,12 +51,13 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.Description)));
         builder.Property(x => x.Priority)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.Priority)))
-            .HasColumnType("task_priority")
-            .HasDefaultValue(PriorityEnum.NoPriority)
+            .HasConversion<string>()
+            .HasMaxLength(16)
+            .HasDefaultValueSql("'NoPriority'")
             .IsRequired();
         builder.Property(x => x.Created)
             .HasColumnName("task_created")
-            .HasDefaultValueSql("CURRENT_DATE")
+            .HasDefaultValueSql("now()")
             .IsRequired();
         builder.Property(x => x.Deadline)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.Deadline)));

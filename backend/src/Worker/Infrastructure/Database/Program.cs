@@ -32,6 +32,6 @@ public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.HasPostgresEnum<PriorityEnum>("task_priority");
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(KabanDatabaseContext).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof( ).Assembly);
     }
 }

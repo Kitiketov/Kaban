@@ -1,23 +1,27 @@
-# Worker — инструкции агенту
+# Worker — правила для кодового агента
 
-Действует на `backend/src/Worker/**` вместе с корневым `AGENTS.md`. **Обязательно** прочитай `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`, если задача касается API → Worker, RabbitMQ, фоновых заданий, событий или новых consumers.
+Применяется к `backend/src/Worker/**` вместе с корневым `AGENTS.md`. Для новой операции вызови локальный skill `.agents/skills/kaban-rabbitmq-workflow/SKILL.md` и сверяйся с `docs/MESSAGING.md`.
 
-## Что уже сделано
+## Ответственность
 
-- `Worker.csproj` — самостоятельный исполняемый .NET 10 web host с `MassTransit.RabbitMQ` и ссылкой на `backend/Contracts/Contracts.csproj`.
-- `Program.cs` вызывает `AddMassTransit`, `AddConsumer<ForecastCreatedConsumer>()`, `UsingRabbitMq` и `cfg.ConfigureEndpoints(context)`.
-- `Features/Weather/ForecastCreatedConsumer.cs` получает `ForecastCreatedEvent` и **только логирует** его. Не называй это выполнением фоновой бизнес-задачи.
-- RabbitMQ-настройки берутся из `RabbitMq` section; в Docker host — `rabbitmq`, локально — `localhost`.
-- `health/live` и `health/ready` сейчас зарегистрированы, но не подтверждают работу брокера.
+**Worker = единственный владелец бизнес-операций и PostgreSQL, а также отправитель результата ожидающему API.** API не пишет в БД; он отправляет MassTransit request и ждёт `RespondAsync`.
 
-## Как добавлять настоящую фоновую работу
+1. Зарегистрируй `IConsumer<TRequest>` и нужный receive endpoint в `Worker/Program.cs` через `AddMassTransit`, `AddConsumer<T>`, `ConfigureEndpoints` либо явно настроенный endpoint. Нельзя ссылаться на Api assembly, его handlers или модели.
+2. В `Consume(ConsumeContext<TRequest>)` получи DTO из `backend/src/Contracts`, вызови application/service Worker, проверь бизнес-инварианты и разрешения по данным БД. Не доверяй входу только потому, что API использует FluentValidation; сообщения могут поступить от других producers.
+3. Через Worker-owned `KabanDatabaseContext`/репозитории и EF Core выполни работу, учти транзакции, уникальные ограничения, конкурентные обновления и **идемпотентность по OperationId/JobId**. Используй `context.CancellationToken` для I/O, но не прерывай транзакцию без осмысленной политики при отмене HTTP-клиента.
+4. **Только после успешного DB commit** вызови `await context.RespondAsync<TSuccess>(result)` с фактическим результатом (`TaskId`, данные DTO и т. п.). Это завершает `IRequestClient.GetResponse` в API. Не заменяй `RespondAsync` на `Publish` как единственный путь возврата ответа API.
+5. При ожидаемых бизнес-ошибках ответь типизированным `TBusinessFailure` через `RespondAsync` (например, `NotFound`, `Conflict`, `Forbidden`). При технической ошибке не глотай исключение: MassTransit отправит fault, API должен классифицировать его как server error. Логи без секретов/SQL details.
+6. Для Realtime и других подписчиков **дополнительно**, после commit, публикуй `...Completed` через `IPublishEndpoint.Publish`. Это уведомление, не ответ ожидающему API. Если необходима гарантированная публикация вместе с DB commit — outbox Worker. Не выдавай publication за завершение request client.
+7. Настрой ограниченный retry/redelivery, обработку `_error` и идемпотентность, включая поздний ответ после HTTP timeout. Тайм-аут ожидания в API **не гарантирует отмены** сообщения и не защищает от дублей. Повтор с тем же OperationId должен возвращать тот же сохранённый результат, не делать вторую запись.
 
-1. Определи задачу и её владельца, отдели `...Requested` (поручение) от `...Completed` (факт); контракт — в `backend/Contracts`, не в API.
-2. Зарегистрируй `IConsumer<TRequested>` и его зависимости через DI. Для команды одному Worker используй согласованный **стабильный receive endpoint**; не полагайся на неописанные auto-queue названия.
-3. `Consume` должен запускать **саму работу** через прикладной сервис Worker, проверять идемпотентность по `JobId`/идентификатору операции, передавать `context.CancellationToken`, фиксировать результат и лишь затем возвращаться успешно.
-4. Не глоти исключения; настраивай обработку ошибок, ограниченные retry/redelivery, наблюдаемость `_error` очередей и логирование correlation IDs.
-5. Не делай ссылку на `Api.csproj`, `KabanDbContext` API, HTTP controllers, request DTO, `IWeatherRepository` API. Для доступов к данным используй владеющий сервис и собственные адаптеры Worker.
-6. Если Worker публикует результат, сначала обеспечь завершение/фиксацию эффекта; при необходимости используй outbox. Синхронизируй контракт с потенциальным получателем в API/Realtime.
-7. Добавь тесты нормальной обработки, дубля, временной ошибки и перезапуска; актуализируй `docs/MESSAGING.md`.
+## Реальная реализация Tasks
 
-**Не реализовано пока:** бизнес-обработка Weather, idempotency/inbox, outbox, custom retry policy, SignalR-публикация. Никогда не утверждай обратного на основании наличия `IConsumer`.
+- `Program.cs` регистрирует `AddDbContext<KabanDatabaseContext>(...UseNpgsql(...))` и `AddConsumer<TaskCreateConsumer>()`, `UsingRabbitMq`, `ConfigureEndpoints`.
+- `Features/Tasks/TaskCreateConsumer.cs` строит сущность `Infrastructure.Database.Domain.Tasks`, вызывает `AddAsync` + `SaveChangesAsync` и **после сохранения** `context.RespondAsync<TaskCreateSuccess>({ TaskId = entityTask.Id })`. Именно этот порядок — базовый для новых операций.
+- **Дефекты текущего кода, не копировать:** `using Contracts.Tasks;` не совпадает с контрактом `Contracts.Features.Tasks`; `Worker.csproj` ссылается на файл `../Api/bin/Debug/net10.0/Contracts.dll`, а не на проект Contracts; сохранение пока не использует `context.CancellationToken`; нет идемпотентности, явных retry/outbox, typed business failures.
+- `Worker/appsettings.json` содержит `Host=localhost;Port=55432` для запуска на ноутбуке; в Docker compose для Worker **пока нет** `ConnectionStrings__DefaultConnection` с `Host=postgres;Port=5432`. При изменении запуска исправляй соответствующий env и проверяй `docker compose config --quiet`.
+- В модели DB/контрактах могут отсутствовать или не совпадать поля. Проверяй фактически сохраняемые колонки и маппинг; не считай request полным отражением entity.
+
+## Структура и тесты
+
+Фичи создавай в `Features/<Feature>/` (consumer, локальные application/domain/infrastructure по необходимости). Общая persistence Worker находится в `Infrastructure/Database`. Контракты только в `backend/src/Contracts`; бизнес-сущности — в Worker. Проверяй unit + интеграцию с реальными RabbitMQ/PostgreSQL: успешный ответ после commit, отказ, fault, timeout + поздний ответ, повтор, concurrent requests, очередь `_error`, зависший Worker. Не заявляй exactly-once.

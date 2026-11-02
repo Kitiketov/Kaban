@@ -1,59 +1,58 @@
-# Инструкции для агентов — Kaban
+# Kaban — инструкции для кодовых агентов
 
-## Область действия
+> Проверено по `Kitiketov/Kaban`, `main` на commit `f6b110e9f2d59efc6251060a9ab9680202d24722` (2026-11-01). Сверяй с кодом при последующих изменениях: документация не заменяет проверку исходников.
 
-- Применяй этот файл ко всему репозиторию; вложенные AGENTS.md уточняют правила своей папки. Прямые инструкции пользователя имеют приоритет.
-- Перед изменениями читай README.md, docs/ARCHITECTURE.md и docs/FILE_NAMING_AND_DTO.md. Сверяй документацию с кодом и обновляй её при изменении архитектуры.
-- Стек: .NET 10, ASP.NET Core, MediatR, FluentValidation, EF Core/Npgsql, PostgreSQL. Версии проверяй в .csproj и backend/Directory.Build.props; не обновляй пакеты попутно.
+## Область действия и чтение
 
-## Структура и границы
+Этот файл действует на весь монорепозиторий; вложенные `AGENTS.md` уточняют правила, прямые требования пользователя имеют приоритет. Перед изменениями читай `docs/ARCHITECTURE.md`, `docs/MESSAGING.md`, `docs/WORKER_DATABASE_BOUNDARY.md`, соответствующие вложенные `AGENTS.md` и, для RabbitMQ, **`.agents/skills/kaban-rabbitmq-workflow/SKILL.md`**. Читай также `docs/FILE_NAMING_AND_DTO.md`, если меняешь структуру фич.
 
-- backend/src/Api — HTTP API, прикладные операции и принадлежащая API БД. Следуй backend/src/Api/AGENTS.md.
-- backend/src/Worker — самостоятельный host с MassTransit consumer: пока получает и логирует ForecastCreatedEvent; см. backend/src/Worker/AGENTS.md.
-- backend/src/Realtime — отдельный host только с health endpoints, пока без SignalR и RabbitMQ; см. backend/src/Realtime/AGENTS.md.
-- backend/tests/Tests — xUnit-тесты API. Следуй backend/tests/AGENTS.md.
-- frontend — статический демонстрационный HTTP-клиент, без npm toolchain и Playwright.
-- deploy/docker, deploy/nginx.conf и docker-compose.yml — контейнеры и локальный запуск.
-- Сохраняй feature-first и локальные слои. Не добавляй ссылки Worker/Realtime на сборку API, его EF-сущности и DbContext. Сервис владеет своими данными; не читай и не изменяй чужие таблицы напрямую.
-- Не превращай каждый handler в микросервис. Новые границы обосновывай ответственностью и владением данными. Не создавай пустые слои и универсальные абстракции без конкретной задачи.
+Технологии: .NET 10, ASP.NET Core, MediatR, FluentValidation, MassTransit/RabbitMQ, PostgreSQL, EF Core/Npgsql, Docker Compose. Версии проверяй в `.csproj`; не обновляй без отдельной необходимости.
 
-## Команды из корня репозитория
+## ОБЯЗАТЕЛЬНЫЙ поток HTTP → Worker → HTTP
 
-Требуются .NET 10 SDK; для контейнеров — Docker с Compose.
+**Главное правило: HTTP-запрос остаётся ожидающим, пока Worker выполняет операцию через RabbitMQ. API ждёт адресный результат Worker с конечным тайм-аутом и возвращает полученные данные вызывающему клиенту. Не подменяй результат подтверждением постановки задания в очередь. Не предписывай фиксированный HTTP success status: это отдельная деталь контракта endpoint, а не задача агента по messaging.**
 
-```powershell
-dotnet restore backend/Kaban.sln
-dotnet build backend/Kaban.sln --no-restore
-dotnet test backend/Kaban.sln --no-build
+```text
+Клиент HTTP POST/GET
+  -> API Controller -> IMediator.Send(Command/Query)
+  -> API FluentValidation pipeline (формат и независимые от БД правила)
+  -> API IRequestClient<TRequest>.GetResponse<TSuccess[, TBusinessFailure]>(..., ct)
+  -> RabbitMQ -> Worker IConsumer<TRequest>
+  -> Worker проверяет бизнес-правила, читает/пишет PostgreSQL через EF Core
+  -> успешный commit -> ConsumeContext.RespondAsync<TSuccess>(...)
+  -> API получает response.Message, преобразует в DTO и возвращает результат клиенту
 ```
 
-Локальный API с PostgreSQL:
+- **API** владеет HTTP, authentication/authorization по проверенным claims, MediatR, FluentValidation входа, MassTransit request client и HTTP-ответами; для новых фич **без DbContext, EF, Repository/UnitOfWork/SQL и подключения к PostgreSQL**.
+- **Worker** владеет прикладной бизнес-обработкой, проверками по реальным данным, EF Core/DbContext, PostgreSQL, репозиториями, миграциями, идемпотентностью и ответом на сообщение. Worker не зависит от `Api.csproj`.
+- **Контракт** для обеих сторон живёт в `backend/src/Contracts` (а НЕ в старом `backend/Contracts`); не передавай EF-сущности, JWT, пароли, `HttpContext`.
+- **Результат для ожидающего API** — `RespondAsync` внутри Worker и `GetResponse` внутри API. **Публичное событие** о завершённом действии для Realtime/других подписчиков можно **дополнительно** разослать через `IPublishEndpoint.Publish<TCompleted>`, но публикация сама по себе **не завершает** `IRequestClient.GetResponse`. Не пытайся ждать произвольный `Publish` через статический `TaskCompletionSource` или подписку отдельного HTTP-запроса.
+- **Тайм-аут обязателен:** настрой явно конечный и разумный бюджет ожидания (общая конфигурация, транспорт + HTTP); передавай `CancellationToken`. Тайм-аут означает, что **API перестал ждать, но Worker мог продолжить работу и успешно записать данные**. Для повторов клиентских запросов применяй стабильный `OperationId`/idempotency key и дедупликацию в Worker; не запускай повторную запись вслепую.
+- **Успешный ответ клиенту** формируется только из подтверждённого Worker результата после commit. Не заменяй ожидание Worker ответом о том, что запрос поставлен в очередь, и не назначай всем операциям одинаковый HTTP status code.
+- Бизнес-отказы Worker передавай типизированным ответом (not found, invalid state, conflict, forbidden), технические faults и timeouts обрабатывай отдельно. Ошибку очереди/БД не выдавай за успешное завершение.
+- Message delivery по умолчанию не exactly-once. Для записи: идемпотентность, ограниченный retry, проверка `_error` queue, при необходимости outbox/inbox. При долгих задачах предпочитай отдельный асинхронный workflow вместо длительного открытого HTTP-запроса.
 
-```powershell
-docker compose up -d --wait postgres
-dotnet run --project backend/src/Api --launch-profile Api
-```
+## Текущее состояние (НЕ путать с идеалом)
 
-- Swagger: http://localhost:5080/swagger; API: http://localhost:5080/api/weather.
-- PostgreSQL с хоста: localhost:55432; из контейнеров: postgres:5432. .env читает Compose, не локальный .NET host; строку подключения переопределяй через ConnectionStrings__DefaultConnection.
-- Полный стек: `docker compose up -d --build`. Не занимай одновременно порты локальными и контейнерными процессами: API 5080, Worker 5081, Realtime 5082, frontend 8080.
-- При изменении Compose выполняй `docker compose config --quiet`. Отдельные lint/format-команды и CI workflow пока не настроены; не сообщай о прохождении отсутствующих проверок.
+- **Текущая фича Tasks** уже использует `Api/Features/Tasks/CreateTask/Handler.cs` -> `IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>` -> `Worker/Features/Tasks/TaskCreateConsumer.cs` -> `KabanDatabaseContext.SaveChangesAsync()` -> `context.RespondAsync<TaskCreateSuccess>`. Это **request/response**, хотя тип запроса пока называется `TaskCreateEvent`.
+- В API `Program.cs` зарегистрирован `AddRequestClient<TaskCreateEvent>()`; в Worker зарегистрирован consumer через `AddConsumer` и `ConfigureEndpoints`.
+- **FluentValidation pipeline имеется, но для текущего `CreateTaskCommand` нет валидатора и в текущем `AddApplication()` не зарегистрировано сканирование validators.** Не заявляй, что создание Tasks уже проходит реальную FluentValidation-проверку; при добавлении валидатора зарегистрируй его.
+- Существуют технические несогласованности: в Worker consumer указан `using Contracts.Tasks`, но контракт объявлен в `Contracts.Features.Tasks`; `Worker.csproj` использует ссылку на Debug-DLL вместо `ProjectReference`; `docker-compose.yml` не задаёт `ConnectionStrings__DefaultConnection` для Worker (его appsettings использует localhost); `CreatedAtAction(nameof(Create))` у API не указывает на корректный GET-by-id endpoint. Эти проблемы исправляй в отдельной задаче с проверкой сборки, **не копируй их как образец**.
+- `Realtime` пока содержит только health endpoints, без SignalR/MQ и JWT; не изображай его работающим уведомляющим сервисом.
 
+## Структура и правила
 
-## Безопасность и завершение работы
+- `backend/src/Api` — HTTP/MediatR/FluentValidation/request client; правила в `backend/src/Api/AGENTS.md`.
+- `backend/src/Worker` — consumer/бизнес-обработка/единственный владелец бизнес-БД; правила в `backend/src/Worker/AGENTS.md`.
+- `backend/src/Contracts` — общие транспортные DTO и типизированные результаты; правила в `backend/src/Contracts/AGENTS.md`.
+- `backend/src/Realtime` — отдельный host для будущего SignalR; `backend/src/Realtime/AGENTS.md`.
+- `backend/tests` — тесты; `backend/tests/AGENTS.md`.
+- `frontend` — отдельный статический клиент; `deploy/` и `docker-compose.yml` — инфраструктура.
 
-- Сохраняй пользовательские изменения и ограничивай diff задачей. Не коммить секреты, токены и реальные строки подключения; не логируй auth-заголовки и чувствительные данные.
-- Не используй демонстрационные настройки для production. Не удаляй PostgreSQL volume и не запускай `docker compose down -v` ради исправления подключения.
-- Не применяй миграции к production в рамках локальной проверки.
-- Для кода выполняй сборку и подходящие тесты. Для документации проверяй пути, команды и соответствие коду; новые тесты только ради Markdown не нужны.
-- В результате указывай изменения, фактически выполненные проверки и ограничения. Обновляй инструкции при изменении структуры и команд.
+Сохраняй feature-first, короткие имена файлов внутри папки операции (`Command.cs`, `Handler.cs`, `Validator.cs`) и полные имена типов; разделяй HTTP DTO, MediatR command/query и MQ-контракт. Не создавай лишние сервисы, глобальные слои, ненужные абстракции, ссылки Worker на API или собственный DbContext в API.
 
-## Правила агента для RabbitMQ (актуальное состояние)
+## Проверки и безопасность
 
-- При задачах **«отправь из API в Worker»**, «добавь очередь», «создай consumer», «доставь результат через Realtime» **сначала** прочитай `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`; также применяй вложенные `AGENTS.md` соответствующих проектов и `backend/Contracts/AGENTS.md`.
-- **Сейчас:** API `CreateForecastHandler` сохраняет Weather в PostgreSQL и после коммита публикует `ForecastCreatedEvent` через MassTransit. Worker `ForecastCreatedConsumer` только логирует событие. Это **не** передача создания прогноза на Worker. Realtime пока не подписывается на брокер и не содержит SignalR Hub.
-- **Для новой фоновой работы:** контроллер API принимает HTTP-запрос → MediatR handler валидирует и ставит работу в очередь через согласованный контракт `...Requested` → Worker consumer действительно выполняет её → сохраняет эффект и, при необходимости, публикует `...Completed`/`...Failed`. При длительной работе API отвечает 202 Accepted/JobId, а не ждёт выполнения.
-- Для задания одному исполнителю предпочитай **адресное Send** к настроенному endpoint, для широковещательного факта — **Publish**. Не придумывай существующие `topic`/routing keys: текущий `ConfigureEndpoints` использует соглашения MassTransit и fanout exchange по типам, не ручной RabbitMQ topic exchange.
-- Межсервисные message DTO размещай **только в `backend/Contracts`**. Не передавай EF сущности, JWT или секреты. Не добавляй ссылок Worker/Realtime на API и его DbContext.
-- При доступе к данным реши границы владения, учти **outbox**, повторные доставки, идемпотентность, bounded retry и `_error` очереди. В действующем Weather-примере **пока нет** outbox и гарантий восстановления после отказа между DB commit и Publish.
-- Меняя код обмена, одновременно обновляй `docs/MESSAGING.md` и нужные `AGENTS.md`. Не называй несуществующие функции готовыми.
+Из корня: `dotnet restore backend/Kaban.sln`, `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`, `docker compose config --quiet` (последнее при изменении Compose). Для messaging обязателен интеграционный прогон API + RabbitMQ + Worker + PostgreSQL, включая timeout/дубль/fault. Если сборка не проходит из-за существующих ошибок — сообщи точно, не называй проверки успешными.
+
+Не коммить секреты и реальные connection strings; не доверяй `UserId` из тела запроса; не раскрывай исключения Worker напрямую клиенту. Не используй `docker compose down -v`, не удаляй существующие данные и не запускай production-миграции. Не изменяй C#-код/контракты/HTTP-семантику только ради правки Markdown без отдельного поручения.

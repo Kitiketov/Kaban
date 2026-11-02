@@ -1,94 +1,55 @@
-# Правила разработки API
+# API — правила для кодового агента
 
-Применяй к backend/src/Api/** вместе с корневым AGENTS.md. Рабочий пример — Features/Weather; Users и Tasks пока содержат только заготовки папок.
+Действует на `backend/src/Api/**` вместе с корневым `AGENTS.md`. Для изменений очередей сначала прочитай `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`, `docs/MESSAGING.md` и `docs/WORKER_DATABASE_BOUNDARY.md`.
 
-## Поток запроса и зависимости
+## Назначение и обязательный поток
 
-HTTP request → Controller → mediator.Send(Command/Query) → ValidationBehavior → Handler → Repository / IUnitOfWork → EF Core → PostgreSQL.
+**API = HTTP + MediatR + FluentValidation + MassTransit request/response. Бизнес-БД находится только в Worker.** Для коротких операций API **ожидает результат Worker** с конечным тайм-аутом, а затем возвращает его HTTP-клиенту, а не подтверждает одну лишь отправку сообщения.
 
-- Presentation: HTTP DTO, маршруты, авторизация, преобразование запроса в command/query и результата в HTTP-ответ. Не размещай здесь бизнес-логику, SQL и SaveChanges.
-- Application: use cases, команды/запросы MediatR, handlers, validators, output DTO и интерфейсы репозиториев. Не импортируй MVC, HttpContext, EF Core и конкретную Infrastructure в handlers.
-- Domain: сущности и инварианты, без зависимостей от HTTP, MediatR, FluentValidation, EF Core и RabbitMQ. Mapping хранения оставляй в Infrastructure.
-- Infrastructure внутри фичи: реализации репозиториев, EF-конфигурации, регистрация зависимостей фичи.
-- Api/Infrastructure/Persistence: общий для API KabanDbContext, подключение БД и EfUnitOfWork. Common/Application/IUnitOfWork — прикладной контракт сохранения.
-- Это логические слои одной сборки. Соблюдай границы даже там, где компилятор допускает обратную зависимость. Не вызывай controller/handler другой фичи напрямую и не связывай фичи через чужие конкретные репозитории.
+```text
+HTTP POST /api/tasks
+ -> Controller / HTTP DTO
+ -> IMediator.Send(CreateTaskCommand, ct)
+ -> ValidationBehavior + AbstractValidator<CreateTaskCommand>
+ -> Handler: IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>(..., ct)
+ -> RabbitMQ -> Worker -> PostgreSQL -> RespondAsync
+  -> API: response.Message -> response DTO -> HTTP-клиент
+```
 
-## Размещение и стиль
+- `Presentation`: HTTP request/response DTO, маршруты, авторизация, mapping в MediatR. Controller не обращается к RabbitMQ, EF/SQL или Worker DB непосредственно.
+- `Application/<Operation>`: `Command.cs`/`Query.cs`, `Handler.cs`, `Validator.cs`. Handler переводит проверенную команду в DTO из `backend/src/Contracts`, вызывает **`IRequestClient<T>`**, дожидается `GetResponse<TSuccess, TBusinessFailure>` и возвращает DTO без ожидания через fire-and-forget. Не добавляй EF Core, `DbContext`, DB repository, миграции, SQL и `SaveChangesAsync` в API.
+- `Domain`: чистые правила/value objects без БД при необходимости; авторитетные инварианты с БД — в Worker. `Infrastructure`: message adapters/DI, только если нужны.
+- Запрос на чтение (`GET`) тоже идёт через MassTransit request/response Worker → DTO. Не добавляй прямой read-repository API.
 
-Создавай только необходимые файлы по существующей схеме:
+## Validation, authentication и обработка ошибок
+
+- Используй существующий `Common/Validation/ValidationBehavior<TRequest,TResponse>`, `AbstractValidator<TCommand>` и `ValidateAsync`. Валидируй обязательность, длину, диапазоны, форматы и независимые от БД правила **до** MQ-вызова. Проверки существования, прав на ресурс, уникальности и конфликтов по БД — Worker.
+- **Важно:** сейчас `AddApplication()` регистрирует MediatR и `ValidationBehavior`, **но не содержит** `AddValidatorsFromAssembly...`; валидатора `CreateTaskCommand` в текущем `main` нет. При реализации валидации добавь `Validator.cs` и явную регистрацию FluentValidation, проверь через DI/интеграционный тест. Не заявляй, что одна регистрация pipeline уже обеспечивает проверку полей.
+- Авторизуй API через доверенные claims; при передаче actorId получай его из проверенного identity, не принимай без проверки `UserId` из body. Worker проверяет бизнес-права повторно.
+- У `IRequestClient<T>` должно быть **настраиваемое конечное время ожидания** (`RequestTimeout`/конфигурация MassTransit) и `CancellationToken` HTTP-запроса. Не используй бесконечное ожидание, `.Result`, `.Wait()`, `Task.Run`, собственный in-memory `TaskCompletionSource` для опубликованных events.
+- Успешный `RespondAsync<TSuccess>` после commit → API возвращает данные Worker клиенту. Типизированный отказ, fault и timeout обрабатывай раздельно по контракту HTTP endpoint; не считай отправку в очередь выполнением бизнес-операции.
+- Тайм-аут **не отменяет гарантированно** уже запущенное задание Worker. Повтор клиента может создать дубликат. Для mutating request добавь стабильный idempotency key/OperationId, передавай через Contracts и требуй дедупликацию Worker. Не делай автоматические blind retries POST.
+- Не раскрывай внутренние `RequestFaultException`/SQL/stack trace в HTTP. Имеющийся `RequestFaultExceptionHandler` сейчас переводит *любой* fault в 400; это **неправильный шаблон** для инфраструктурных ошибок. `RequestTimeoutExceptionHandler` сейчас возвращает 503; соблюдай единый выбранный status и ProblemDetails.
+
+## Реальный пример Tasks, нюансы
+
+- `Features/Tasks/CreateTask/Handler.cs` уже содержит `IRequestClient<TaskCreateEvent>.GetResponse<TaskCreateSuccess>`, а не `IPublishEndpoint.Publish`. `TaskCreateEvent` по факту команда-запрос, несмотря на имя.
+- `TaskController.Create` сейчас использует `CreatedAtAction(nameof(Create))`, хотя корректного GET по ID нет. Это существующая деталь HTTP-слоя, а не шаблон схемы RabbitMQ. Не навязывай агенту конкретный успешный HTTP status; при отдельном изменении контроллера проверь корректность его маршрута и ответа.
+- `CreateForecastHandler` как имя класса в папке `CreateTask` — существующее несоответствие; для нового кода используй точное `CreateTaskHandler` и не копируй ошибку.
+- `CreateTaskCommand` пока не содержит реального FluentValidation-validator; `Api.csproj` имеет ProjectReference на `../Contracts/Contracts.csproj`. Смотри фактические namespaces (`Contracts.Features.Tasks`), не старую документацию о `backend/Contracts`/Weather.
+
+## Схема файлов и команды
 
 ```text
 Features/<Feature>/
-  Presentation/<Operation>Request.cs
   Presentation/<Feature>Controller.cs
-  Application/<Operation>/Command.cs или Query.cs
+  Presentation/<Operation>Request.cs  # или локальный DTO по существующему стилю
+  Application/<Operation>/Command.cs (или Query.cs)
   Application/<Operation>/Handler.cs
   Application/<Operation>/Validator.cs
-  Application/DTO/<Name>Dto.cs
-  Application/Abstractions/I<Name>Repository.cs
-  Domain/<Entity>.cs
-  Infrastructure/<Name>Repository.cs
-  Infrastructure/<Entity>Configuration.cs
-  Infrastructure/<Feature>Registration.cs
+  Application/DTO/<Name>Dto.cs      # только если нужен
 ```
 
-- Сохраняй короткие имена файлов Command.cs, Handler.cs, Validator.cs; типы называй явно: CreateForecastCommand, CreateForecastHandler, CreateForecastValidator.
-- Namespace отражает путь: Kaban.Api.Features.<Feature>.Application.<Operation>. Используй file-scoped namespaces, четыре пробела, nullable-контекст и существующий стиль constructor injection.
-- Используй records для неизменяемых сообщений/DTO, sealed для типов без необходимости наследования. Не добавляй интерфейс для каждого класса.
-- HTTP request DTO хранится в Presentation; command/query — в Application. Не возвращай EF/доменные сущности по HTTP. Общий output DTO нескольких операций размещай в Application/DTO; отдельный внешний DTO создавай при реальном различии контрактов.
+Если операция в текущей фиче размещена непосредственно в `Features/<Feature>/<Operation>`, соблюдай её локальный стиль и не делай бесполезную массовую перестройку папок. Namespace по реальному пути, file-scoped, четыре пробела, nullable, cancellation tokens. Не передавай EF-сущности в HTTP.
 
-## MediatR и FluentValidation
-
-- Use case представляет IRequest<TResponse> и IRequestHandler<TRequest, TResponse>. Контроллер вызывает mediator.Send(..., ct); command меняет состояние, query читает без скрытых записей.
-- Проверки формы входа и допустимых значений размещай в AbstractValidator<TRequest> рядом с операцией. Проверяй command/query, чтобы валидация не зависела от HTTP.
-- Используй Common/Validation/ValidationBehavior; не дублируй ручной вызов validators в контроллерах/handlers. Для асинхронных правил используй ValidateAsync и передавай cancellation token.
-- Защищай инварианты также в Domain: создание в обход pipeline не должно нарушать бизнес-правила. Проверки прав, существования и конкурентных изменений выполняй в соответствующем use case/хранилище; предварительная валидация не заменяет ограничения БД.
-- Не запускай параллельно операции с одним scoped DbContext, включая validators.
-- AddApplication() сканирует сборку API для handlers/validators и регистрирует behavior. При удалении Weather замени marker CreateForecastValidator для сканирования на сохраняемый тип сборки.
-
-## Хранение и DI
-
-- Handler зависит от интерфейсов репозитория и IUnitOfWork; EF-запросы остаются в Infrastructure. Репозиторий изменяет отслеживаемое состояние, handler завершает операцию через SaveChangesAsync(ct). Не сохраняй независимо в каждом методе репозитория.
-- Регистрируй репозитории/UnitOfWork как scoped, согласованно с DbContext. Подключай новый модуль через Add<Feature>Feature() в Program.cs.
-- IEntityTypeConfiguration<T> размещай рядом с фичей: KabanDbContext уже применяет конфигурации своей сборки. Добавляй ограничения, индексы и правила удаления под сценарий.
-- Для read-only запросов используй AsNoTracking, явную сортировку и ограничение выборки/пагинацию. Не возвращай IQueryable из Infrastructure. Для update обеспечь tracking или явное обновление; не копируй read-only загрузку Weather без проверки.
-- Передавай CancellationToken по всей цепочке I/O. Не используй .Result, .Wait() и fire-and-forget для обязательных записей/публикаций.
-- Сейчас схема Weather создаётся через EnsureCreatedAsync только в Development. Перед реальной доменной схемой подготовь EF migrations, план перехода существующей БД и убери EnsureCreated; не смешивай механизмы и не удаляй данные ради перехода.
-
-## Интеграция новой модели БД
-
-- Статус предложенной библиотеки backend/Database смотри в корневом AGENTS.md. Пока она не интегрирована, KabanDbContext остаётся действующим контекстом API; не описывай новую модель как уже работающую.
-- При переносе сущностей сохраняй разделение Domain и EF mapping. Если mapping остаётся в отдельной сборке, явно сканируй её: текущий ApplyConfigurationsFromAssembly сканирует только сборку своего контекста.
-- Сохраняй одну границу commit для всего use case. Не сочетай независимые commit в RecordWriter с IUnitOfWork, если несколько записей должны быть атомарны. Явную транзакцию добавляй для нужного сценария, а не для каждого одиночного SaveChanges.
-- Update должен изменять найденную сущность и возвращать актуальный результат; AddAsync предназначен для вставки. Разрешай изменение конкретных полей, защищай ключи и поля владения от массового присваивания.
-- Не превращай ошибки БД и отмену в null/false, неотличимые от отсутствия записи. Сохраняй причину ошибки, различай not-found, конфликт ограничения и инфраструктурный сбой; отмену передавай вызывающему коду.
-- При реализации модели из PR обеспечь принадлежность роли той же команде, что и UsersTeams.TeamId; отдельные FK на TeamId и RoleId этого не гарантируют. Закрепляй инвариант подходящим ограничением БД и проверкой use case.
-- Для уникальных позиций (BoardId, BoardOrder) и (BoardColumnId, TaskOrder) проектируй атомарное перемещение/переупорядочивание с учётом временных коллизий и конкурентных запросов. Явно проверяй правила удаления связанных записей.
-- При использовании PostgreSQL enum task_priority проверяй согласованность CLR/provider mapping, модели и миграций на настоящем PostgreSQL; одной декларации типа столбца недостаточно для проверки round-trip.
-- Не выдавай HashedPassword через DTO, логи или события. Перед уникальностью Email определи единое правило нормализации для регистрации и поиска; не считай обычный уникальный индекс автоматически регистронезависимым.
-
-## HTTP и безопасность
-
-- Сохраняй маршруты/контракты, если задача не требует изменения. Создание возвращает 201 с Location; отсутствие ресурса — 404; FluentValidation — 400 ValidationProblemDetails через ValidationExceptionHandler.
-- Для новых ожидаемых ошибок определяй явное отображение, например конфликт состояния в 409. Не маскируй все исключения под 400/200 и не раскрывай stack trace, SQL и секреты клиенту.
-- Авторизации сейчас нет. При реализации Users/Tasks добавь проверку личности и прав на конкретный ресурс. Не доверяй UserId/OwnerId из тела; получай текущего пользователя из проверенного контекста через прикладную абстракцию.
-- Не отправляй RabbitMQ-сообщения прямо из controller или доменной сущности. В текущем Weather `CreateForecastHandler` после SaveChanges вызывает `IPublishEndpoint.Publish(ForecastCreatedEvent)`; это событие о завершённой API-работе, а не команда Worker. Для новых фоновых сценариев следуй `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`, используй `backend/Contracts` и учитывай outbox/идемпотентность.
-
-## Проверки из корня репозитория
-
-```powershell
-dotnet build backend/Kaban.sln
-dotnet test backend/tests/Tests/Tests.csproj
-dotnet test backend/tests/Tests/Tests.csproj --filter FullyQualifiedName~CreateForecastHandlerTests
-```
-
-- Последняя команда проверяет пример Weather; для других операций выбирай соответствующие тесты. Правила тестов находятся в backend/tests/AGENTS.md.
-- При изменении HTTP проверь успешный ответ, невалидный ввод и отсутствие ресурса; для авторизации — запрет доступа. EF-поведение проверяй на изолированном PostgreSQL: unit-тесты не проверяют SQL/constraints.
-- Сейчас есть только unit-тесты. Прямой вызов handler не проверяет DI, middleware и validation pipeline; для их изменений нужна отдельная интеграционная проверка.
-
-## API ↔ Worker: требования к новым асинхронным фичам
-
-- При переносе выполнения из API в Worker **не копируй** текущую последовательность Weather `SaveChanges -> Publish(ForecastCreatedEvent)` как команду. Она лишь сообщает о результате API. Для новой работы проектируй `...Requested` и consumer Worker, который выполняет сам эффект.
-- API хранит только HTTP DTO в Presentation, MediatR command/handler в Application, межсервисные контракты — в `backend/Contracts`. Отправка через MassTransit из handler или адаптера, не из controller и не из Domain.
-- Для долгой работы не блокируй HTTP: `202 Accepted` с `JobId`/URL состояния, если реализован статусный ресурс. Надёжность DB commit + публикации требует согласованного outbox (сейчас отсутствует).
-- Контракт должен позволять дедупликацию; не передавай API DbContext, EF Entities и секреты Worker. Вызовы API с зависимостями Worker не допускаются. Детали и проверочный сценарий — `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.
+После изменений проверяй `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`; обязательно тестируй: невалидный input **не отправляет MQ**, успешный Worker response, business rejection, fault, timeout, late response и повтор с тем же OperationId. При изменении протокола актуализируй `docs/MESSAGING.md` и контракты.

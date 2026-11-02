@@ -1,18 +1,10 @@
-# Realtime — инструкции агенту
+# Realtime — правила для кодового агента
 
-Действует на `backend/src/Realtime/**` вместе с корневым `AGENTS.md`. Перед задачами взаимодействия читай `docs/MESSAGING.md` и `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.
+Действует для `backend/src/Realtime/**` вместе с корневым `AGENTS.md`, `docs/MESSAGING.md` и skill `.agents/skills/kaban-rabbitmq-workflow/SKILL.md`.
 
-## Текущее состояние
-
-- `Realtime.csproj` и `Program.cs` содержат только самостоятельный ASP.NET Core host и `/health/live`, `/health/ready`.
-- **SignalR Hub, RabbitMQ/MassTransit consumer, JWT auth и выдача уведомлений отсутствуют**. Переменные RabbitMq в Docker Compose сами по себе не подключают сервис к брокеру.
-- У Realtime нет ссылки на `Api.csproj`, `Contracts.csproj` или API DB context.
-
-## Когда понадобится подключить события
-
-- Realtime принимает *события об уже завершённых изменениях*, например `...Completed`/`NotificationAvailable`, а не исполняет тяжёлую задачу Worker.
-- Контракты держи в `backend/Contracts`. Реализация подписчика и Hub — только внутри Realtime.
-- Hub должен **валидировать access JWT** перед подключением и маршрутизировать события только их законным получателям. Не доверяй `userId` из клиентских параметров. Refresh token не должен открывать WebSocket.
-- Если сообщение требуется отправить пользователю, проверяй привязку события к авторизованному пользователю/группе. Не выкладывай токены в query-string logs.
-- Realtime не должен знать EF-сущности API и напрямую изменять его таблицы. Для истории уведомлений владелец хранения определяется отдельно; не объявляй это уже работающим.
-- Добавь интеграционные тесты авторизации, доставки и запрета чужих событий; обнови `docs/MESSAGING.md`.
+- На текущем `main` в `Program.cs` имеются только health endpoints; **SignalR, JWT authorization, MassTransit consumers и уведомления пока не реализованы**. Не утверждай обратного.
+- После реализации Realtime слушает **публичные события** `...Completed`/`...Created` от Worker и уведомляет разрешённых пользователей через защищённый SignalR Hub.
+- **Realtime не отвечает на `IRequestClient.GetResponse` API.** Для ожидающего API Worker вызывает `ConsumeContext.RespondAsync`; `Publish` используется отдельно для независимых подписчиков (Realtime, аудит, аналитика).
+- Не обрабатывай бизнес-команды и не используй PostgreSQL/EF сущности Worker. Контракты сообщений — в `backend/src/Contracts`.
+- Проверяй access JWT и права на группы/каналы; не используй refresh JWT, не доверяй userId от клиента и не логируй секреты.
+- Если уведомления должны переживать отключение клиента, явно проектируй durable storage/доставку; сам SignalR не гарантирует получение офлайн-клиентом. Тестируй запрет чужих уведомлений и повторы.

@@ -1,23 +1,11 @@
 # Правила тестирования backend
 
-Применяй к backend/tests/** вместе с корневым AGENTS.md. Tests/Tests.csproj использует xUnit и ссылается на API; интеграционного host и контейнерных fixtures пока нет.
+Действует на `backend/tests/**` вместе с корневым `AGENTS.md` и skill `.agents/skills/kaban-rabbitmq-workflow/SKILL.md` при задачах обмена.
 
-## Команды из корня репозитория
-
-```powershell
-dotnet test backend/tests/Tests/Tests.csproj
-dotnet test backend/tests/Tests/Tests.csproj --filter FullyQualifiedName~CreateForecastHandlerTests
-dotnet test backend/Kaban.sln
-```
-
-## Проверки поведения
-
-- Следуй WeatherForecastTests.cs и CreateForecastHandlerTests.cs: имена Method_Condition_ExpectedResult, независимые данные, простые fakes прикладных интерфейсов.
-- Для Domain проверяй инварианты и граничные значения. Для validators — конкретные невалидные поля, а не только общий IsValid.
-- Для handlers проверяй результат, сохранённое состояние и существенные эффекты: успешную запись, отсутствие записи при отказе, количество сохранений и передачу cancellation token там, где меняется этот контракт.
-- Прямой вызов Handle не запускает validation pipeline. Для behavior проверь, что невалидный запрос не доходит до handler, а валидный проходит; DI-сканирование проверяй через реальную регистрацию приложения.
-- При изменении HTTP-контракта добавляй интеграционные проверки статуса, тела, Location и ошибок. При добавлении авторизации проверяй доступ к чужим ресурсам.
-- Для SQL, миграций, уникальности и транзакций используй изолированный PostgreSQL с явной подготовкой/очисткой. Fake repository и EF InMemory не подтверждают совместимость с Npgsql. Не направляй тесты в пользовательскую или production БД.
-- При реализации RabbitMQ проверяй повторную доставку, ограниченные retry, ошибочные сообщения и сбои outbox. Проверяй единственный бизнес-эффект при повторном сообщении, а не обещание exactly-once транспорта.
-- Держи unit-тесты независимыми от Docker, сети, локального времени и порядка запуска. При добавлении интеграционной инфраструктуры документируй требования и отдельную команду запуска.
-- Добавляй проверки поведения и регрессий соразмерно изменению. Для Markdown и переименований без изменения поведения новые тесты не нужны.
+- Текущий `backend/tests/Tests/Tests.csproj` — xUnit с ProjectReference на API. Проверь реальные тестовые файлы перед выбором фильтра: старые Weather-тесты и фильтр `CreateForecastHandlerTests` **в обновлённом main отсутствуют**.
+- После изменения кода запусти из корня `dotnet build backend/Kaban.sln`, `dotnet test backend/Kaban.sln`. Если изначальные ошибки (контрактный namespace, DLL reference) мешают сборке — точно укажи, что не удалось проверить.
+- Тест FluentValidation: некорректный request приводит к 400 и **не вызывает `IRequestClient`**. Недостаточно проверить один лишь `ValidationBehavior` без регистрации `IValidator<T>` в DI.
+- Тест API handler: ждёт `GetResponse<TSuccess>`, передаёт `CancellationToken`, возвращает DTO **только после ответа Worker**. Проверяй business failure, `RequestFaultException`, `RequestTimeoutException`, отмену клиента, корректную обработку ответа и отсутствие преждевременного сообщения об успехе.
+- Тест Worker: после реального PostgreSQL commit отправляет `RespondAsync`, после отката не подтверждает успех, одинаковый `OperationId` не создаёт дубликаты. Проверяй fault, retries, timeout + поздний ответ и ошибки публикации дополнительного event.
+- Держи unit-тесты независимыми от Docker; тесты RabbitMQ/PostgreSQL запускай отдельно с изолированными контейнерами и чёткой очисткой своих тестовых данных. EF InMemory/fake не проверяет SQL constraints. Не удаляй пользовательскую базу.
+- Для changes только в Markdown не нужно создавать тесты; проверь пути, соответствие коду и Markdown/skill metadata.

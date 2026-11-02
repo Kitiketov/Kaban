@@ -58,3 +58,29 @@ public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardCo
         builder.HasOne(x => x.Board).WithMany().HasForeignKey(x => x.BoardId);
     }
 }
+
+public class BoardTags : ITable
+{
+    public int TagId { get; set; }
+    public TaskTags? Tag { get; set; }
+    
+    public int BoardId { get; set; }
+    public Boards? Board { get; set; }
+}
+
+public sealed class BoardTagsConfiguration : IEntityTypeConfiguration<BoardTags>
+{
+    public void Configure(EntityTypeBuilder<BoardTags> builder)
+    {
+        builder.ToTable(TableExtensions.GetDatabaseName(nameof(BoardTags)));
+        builder.HasKey(x => new { x.TagId, x.BoardId });
+        builder.Property(x => x.TagId)
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardTags.TagId)));
+        builder.Property(x => x.BoardId)
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardTags.BoardId)));
+        builder.HasIndex(x => x.BoardId);
+        builder.HasIndex(x => x.TagId);
+        builder.HasOne(x => x.Board).WithMany().HasForeignKey(x => x.BoardId);
+        builder.HasOne(x => x.Tag).WithMany().HasForeignKey(x => x.TagId);
+    }
+}
