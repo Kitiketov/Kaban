@@ -1,4 +1,5 @@
 using Kaban.Worker.Features.Tasks;
+using Kaban.Worker.Features.Boards;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,14 @@ builder.Services.AddDbContext<KabanDatabaseContext>(
 builder.Services.AddMassTransit(x =>
     {
         x.AddConsumer<TaskCreateConsumer>();     
+        x.AddConsumer<CreateBoardConsumer>();
+        x.AddConsumer<ListBoardsConsumer>();
+        x.AddConsumer<GetBoardConsumer>();
+        x.AddConsumer<RenameBoardConsumer>();
+        x.AddConsumer<DeleteBoardConsumer>();
+        x.AddConsumer<AddBoardColumnConsumer>();
+        x.AddConsumer<RenameBoardColumnConsumer>();
+        x.AddConsumer<DeleteBoardColumnConsumer>();
         x.UsingRabbitMq((context, cfg) => 
         { 
             var configuration = context.GetRequiredService<IConfiguration>();

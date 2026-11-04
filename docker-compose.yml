@@ -38,7 +38,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://0.0.0.0:80
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=kaban;Username=kaban;Password=${POSTGRES_PASSWORD:-local_dev_password}
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: kaban
       RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
@@ -56,10 +55,13 @@ services:
       dockerfile: deploy/docker/Worker.Dockerfile
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:80
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=kaban;Username=kaban;Password=${POSTGRES_PASSWORD:-local_dev_password}
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: kaban
       RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     ports:
