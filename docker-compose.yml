@@ -1,4 +1,14 @@
 services:
+  seq:
+    image: datalust/seq:2026.1
+    environment:
+      ACCEPT_EULA: Y
+      SEQ_FIRSTRUN_NOAUTHENTICATION: "true"
+    volumes:
+      - kaban_seq:/data
+    ports:
+      - "127.0.0.1:5341:80"
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -38,10 +48,13 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://0.0.0.0:80
-      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=kaban;Username=kaban;Password=${POSTGRES_PASSWORD:-local_dev_password}
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: kaban
       RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
+      OTEL_SERVICE_NAME: kaban-api
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,10 +69,17 @@ services:
       dockerfile: deploy/docker/Worker.Dockerfile
     environment:
       ASPNETCORE_URLS: http://0.0.0.0:80
+      ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=kaban;Username=kaban;Password=${POSTGRES_PASSWORD:-local_dev_password}
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: kaban
       RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
+      OTEL_SERVICE_NAME: kaban-worker
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
     ports:
@@ -74,6 +94,10 @@ services:
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: kaban
       RabbitMq__Password: ${RABBITMQ_PASSWORD:-local_dev_password}
+      OTEL_SERVICE_NAME: kaban-realtime
+      OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=development
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://seq:5341/ingest/otlp
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -93,3 +117,4 @@ services:
 volumes:
   kaban_pg:
   kaban_rabbit:
+  kaban_seq:
