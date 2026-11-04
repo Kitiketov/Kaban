@@ -16,7 +16,7 @@ public class TaskCreateConsumer(
             "Handled event {EventType}: {Name}",
             nameof(TaskCreateEvent),
             message.Name);
-        
+
         var entityTask = new Infrastructure.Database.Domain.Tasks
         {
             Name = message.Name,
@@ -27,10 +27,10 @@ public class TaskCreateConsumer(
             Priority = (PriorityEnum)message.Priority,
             BoardColumnId = message.ColumnId,
         };
-        
+
         await dbContext.AddAsync(entityTask);
         await dbContext.SaveChangesAsync();
-        
+
         await context.RespondAsync<TaskCreateSuccess>(new
         {
             TaskId = entityTask.Id,

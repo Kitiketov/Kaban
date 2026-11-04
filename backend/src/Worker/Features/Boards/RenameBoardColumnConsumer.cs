@@ -23,7 +23,6 @@ public sealed class RenameBoardColumnConsumer(KabanDatabaseContext db, ILogger<R
         await context.RespondAsync(new BoardColumnRenamed(column.Id, column.BoardId, column.ColumnName,
             column.BoardOrder));
 
-        logger.LogInformation("Renamed column {ColumnId} on board {BoardId}; correlation {CorrelationId}", column.Id,
-            column.BoardId, context.CorrelationId);
+        logger.LogInformation("Renamed column {ColumnId} on board {BoardId}", column.Id, column.BoardId);
     }
 }

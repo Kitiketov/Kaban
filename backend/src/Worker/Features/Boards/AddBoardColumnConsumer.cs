@@ -33,8 +33,7 @@ public sealed class AddBoardColumnConsumer(KabanDatabaseContext db, ILogger<AddB
         await context.RespondAsync(
             new BoardColumnAdded(column.Id, column.BoardId, column.ColumnName, column.BoardOrder));
 
-        logger.LogInformation(
-            "Added column {ColumnId} to board {BoardId} at order {Order}; correlation {CorrelationId}", column.Id,
-            column.BoardId, order, context.CorrelationId);
+        logger.LogInformation("Added column {ColumnId} to board {BoardId} at order {Order}", column.Id,
+            column.BoardId, order);
     }
 }

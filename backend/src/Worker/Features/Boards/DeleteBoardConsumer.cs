@@ -17,6 +17,7 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
         if (board is null)
         {
             await context.RespondAsync(new BoardDeleted(false));
+            logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, false);
             return;
         }
 
@@ -24,7 +25,6 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
         await db.SaveChangesAsync(ct);
         await context.RespondAsync(new BoardDeleted(true));
 
-        logger.LogInformation("Deleted board {BoardId}; correlation {CorrelationId}", request.BoardId,
-            context.CorrelationId);
+        logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, true);
     }
 }

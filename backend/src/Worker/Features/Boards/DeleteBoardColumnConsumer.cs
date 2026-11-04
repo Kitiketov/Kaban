@@ -17,6 +17,7 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
         if (column is null)
         {
             await context.RespondAsync(new BoardColumnDeleted(false));
+            logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, false);
             return;
         }
 
@@ -24,7 +25,6 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
         await db.SaveChangesAsync(ct);
         await context.RespondAsync(new BoardColumnDeleted(true));
 
-        logger.LogInformation("Deleted column {ColumnId}; correlation {CorrelationId}", request.ColumnId,
-            context.CorrelationId);
+        logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, true);
     }
 }

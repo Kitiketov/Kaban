@@ -22,6 +22,6 @@ public sealed class RenameBoardConsumer(KabanDatabaseContext db, ILogger<RenameB
         await db.SaveChangesAsync(ct);
         await context.RespondAsync(new BoardRenamed(board.Id, board.ProjectId, board.Name));
 
-        logger.LogInformation("Renamed board {BoardId}; correlation {CorrelationId}", board.Id, context.CorrelationId);
+        logger.LogInformation("Renamed board {BoardId} for project {ProjectId}", board.Id, board.ProjectId);
     }
 }

@@ -21,11 +21,7 @@ public sealed class CreateBoardConsumer(KabanDatabaseContext db, ILogger<CreateB
         db.Add(board);
         await db.SaveChangesAsync(ct);
         await context.RespondAsync(new BoardCreated(board.Id, board.ProjectId, board.Name));
-        
-        logger.LogInformation(
-            "Created board {BoardId} for project {ProjectId}; correlation {CorrelationId}",
-            board.Id,
-            board.ProjectId,
-            context.CorrelationId);
+
+        logger.LogInformation("Created board {BoardId} for project {ProjectId}", board.Id, board.ProjectId);
     }
 }

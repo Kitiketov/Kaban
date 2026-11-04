@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Diagnostics;
 
 namespace Kaban.Api.Common.Exceptions;
 
-public class RequestFaultExceptionHandler : IExceptionHandler
+public class RequestFaultExceptionHandler(ILogger<RequestFaultExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -12,6 +12,9 @@ public class RequestFaultExceptionHandler : IExceptionHandler
     {
         if (exception is not RequestFaultException requestFaultException)
             return false;
+
+        logger.LogError("Worker request fault for {Method} {Path}", httpContext.Request.Method,
+            httpContext.Request.Path);
 
         var result = Results.BadRequest(new
         {

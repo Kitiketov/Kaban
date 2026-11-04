@@ -18,7 +18,6 @@ public sealed class ListBoardsConsumer(KabanDatabaseContext db, ILogger<ListBoar
             .ToListAsync(ct);
         await context.RespondAsync(new BoardListResult(rows));
 
-        logger.LogInformation("Returned {BoardCount} boards for project {ProjectId}; correlation {CorrelationId}",
-            rows.Count, request.ProjectId, context.CorrelationId);
+        logger.LogInformation("Returned {BoardCount} boards for project {ProjectId}", rows.Count, request.ProjectId);
     }
 }

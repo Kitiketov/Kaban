@@ -24,7 +24,6 @@ public sealed class GetBoardConsumer(KabanDatabaseContext db, ILogger<GetBoardCo
             .ToListAsync(ct);
         await context.RespondAsync(new BoardDetails(board.Id, board.ProjectId, board.Name, columns));
 
-        logger.LogInformation("Returned board {BoardId} with {ColumnCount} columns; correlation {CorrelationId}",
-            board.Id, columns.Count, context.CorrelationId);
+        logger.LogInformation("Returned board {BoardId} with {ColumnCount} columns", board.Id, columns.Count);
     }
 }
