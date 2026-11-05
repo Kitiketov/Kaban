@@ -1,4 +1,4 @@
-﻿namespace Kaban.Api.Features.Tasks.DTO;
+﻿namespace Kaban.Api.Features.Tasks.CreateTask;
 
 public sealed record TaskCreateRequestDto(
     string Name,

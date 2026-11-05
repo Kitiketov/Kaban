@@ -1,4 +1,3 @@
-using Kaban.Api.Features.Tasks.DTO;
 using MediatR;
 
 namespace Kaban.Api.Features.Tasks.CreateTask;

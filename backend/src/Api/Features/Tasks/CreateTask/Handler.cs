@@ -1,5 +1,4 @@
 using Contracts.Features.Tasks;
-using Kaban.Api.Features.Tasks.DTO;
 using MassTransit;
 using MediatR;
 

@@ -1,5 +1,4 @@
 ﻿using Kaban.Api.Features.Tasks.CreateTask;
-using Kaban.Api.Features.Tasks.DTO;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
