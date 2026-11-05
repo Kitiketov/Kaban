@@ -14,7 +14,7 @@ public sealed class MessagingExceptionHandler : IExceptionHandler
             UserOperationException { Code: "email_conflict" } => (409, "Email is already registered"),
             UserOperationException { Code: "idempotency_conflict" } => (409, "Idempotency key was used with a different request"),
             UserOperationException => (400, "Invalid request"),
-            RequestTimeoutException => (503, "Worker response timed out; retry registration with the same Idempotency-Key"),
+            RequestTimeoutException => (503, "Worker response timed out"),
             RequestFaultException => (502, "Worker could not complete the request"),
             _ => (0, "")
         };

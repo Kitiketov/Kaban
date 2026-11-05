@@ -19,10 +19,9 @@ public sealed class UsersController(IMediator mediator) : ControllerBase
     [AllowAnonymous]
     [EnableRateLimiting("auth")]
     [HttpPost]
-    public async Task<IActionResult> Register(RegisterUserRequest request,
-        [FromHeader(Name = "Idempotency-Key")] Guid operationId, CancellationToken ct)
+    public async Task<IActionResult> Register(RegisterUserRequest request, CancellationToken ct)
     {
-        await mediator.Send(new RegisterUserCommand(operationId, request.Email, request.Name, request.Password), ct);
+        await mediator.Send(new RegisterUserCommand(request.Email, request.Name, request.Password), ct);
         return StatusCode(StatusCodes.Status201Created);
     }
 

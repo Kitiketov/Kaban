@@ -53,7 +53,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
         var before = factory.Services.GetRequiredService<Probe>().Calls;
         var badLogin = await client.PostAsJsonAsync("/api/auth/sessions", new { email = "bad", password = "" });
         Assert.Equal(HttpStatusCode.BadRequest, badLogin.StatusCode);
-        var badRegistration = await client.PostAsJsonAsync("/api/users", new { email = "ok@example.com", name = "Name", password = "good-password" });
+        var badRegistration = await client.PostAsJsonAsync("/api/users", new { email = "ok@example.com", name = "Name", password = "short" });
         Assert.Equal(HttpStatusCode.BadRequest, badRegistration.StatusCode);
         var tokens = factory.Services.GetRequiredService<TokenService>().Create(7);
         client.DefaultRequestHeaders.Authorization = new("Bearer", tokens.AccessToken);
@@ -72,7 +72,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     }
 
     [Fact]
-    public async Task Register_WaitsForWorker_AndDoesNotExposePasswordHash()
+    public async Task Register_WithoutIdempotencyKey_WaitsForWorker_AndDoesNotExposePasswordHash()
     {
         var probe = factory.Services.GetRequiredService<Probe>();
         probe.ReleaseRegistration = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -83,7 +83,6 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
             {
                 Content = JsonContent.Create(new { email = " NEW@example.com ", name = " New ", password = "good-password" })
             };
-            request.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
             var pending = client.SendAsync(request);
             await probe.RegistrationReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.False(pending.IsCompleted);
@@ -180,6 +179,7 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
     {
         Interlocked.Increment(ref probe.Calls);
         Assert.Equal("new@example.com", context.Message.Email);
+        Assert.NotEqual(Guid.Empty, context.Message.OperationId);
         Assert.Equal("New", context.Message.Name);
         Assert.NotEqual("good-password", context.Message.PasswordHash);
         Assert.True(credentials.Verify("good-password", context.Message.PasswordHash));

@@ -12,7 +12,7 @@ public sealed class RegisterUserHandler(IRequestClient<RegisterUserRequested> cl
         var email = request.Email.Trim().ToLowerInvariant();
         var name = request.Name.Trim();
         var response = await client.GetResponse<UserRegistered, UserFailure>(
-            new(request.OperationId, credentials.Fingerprint(email, name, request.Password),
+            new(Guid.NewGuid(), credentials.Fingerprint(email, name, request.Password),
                 email, name, credentials.Hash(request.Password)), ct);
         if (response.Is(out Response<UserFailure>? failure)) throw new UserOperationException(failure.Message.Code);
     }

@@ -6,6 +6,7 @@ using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Auth.Infrastructure;
 using Kaban.Contracts.Users;
 using MassTransit;
+using Microsoft.OpenApi;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -43,7 +44,21 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description = "Paste the accessToken without the Bearer prefix. For POST /api/auth/tokens/refresh, use the refreshToken instead."
+    });
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+    });
+    options.OperationFilter<BearerSecurityOperationFilter>();
+});
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<MessagingExceptionHandler>();
 builder.Services.AddCustomExceptionHandlers();
