@@ -5,12 +5,11 @@ namespace Kaban.Api.Features.Tasks.CreateTask;
 
 public sealed record CreateTaskCommand(
     string Name,
-    string Description,
+    string? Description,
     int Priority,
-    DateTime Deadline,
-    int BoardId,
-    int UserId,
+    DateTime? Deadline,
+    int KanbanId,
+    int? UserId,
     int ColumnId,
-    int Order,
-    int[] TagIds)
+    int[]? TagIds)
     : IRequest<TaskCreateResponseDto>;

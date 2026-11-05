@@ -21,7 +21,7 @@ builder.Services.AddHealthChecks();
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddMassTransit(x =>
 {
-    x.AddRequestClient<TaskCreateEvent>(); 
+    x.AddRequestClient<CreateTaskRequest>(); 
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();

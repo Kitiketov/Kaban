@@ -6,23 +6,22 @@ using Microsoft.AspNetCore.Mvc;
 namespace Kaban.Api.Features.Tasks.Presentation;
 
 [ApiController]
-[Route("api/tasks")]
+[Route("api/kanbans/{kanbanId:int}/tasks")]
 public class TaskController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<TaskCreateResponseDto>> Create(
-        [FromBody] TaskCreateRequestDto request, CancellationToken ct)
+        [FromBody] TaskCreateRequestDto request, int kanbanId, CancellationToken ct)
     {
         var result = await mediator.Send(
             new CreateTaskCommand(request.Name,
-                request.Description,  
-                request.Priority,     
-                request.Deadline,    
-                request.BoardId,
-                request.UserId,       
-                request.ColumnId,     
-                request.Order,        
+                request.Description,
+                request.Priority,
+                request.Deadline,
+                kanbanId,
+                request.UserId,
+                request.ColumnId,
                 request.TagIds), ct);
-        return CreatedAtAction(nameof(Create), new { id = result.Id }, result);
+        return CreatedAtAction(nameof(Create), new { id = kanbanId }, result);
     }
 }

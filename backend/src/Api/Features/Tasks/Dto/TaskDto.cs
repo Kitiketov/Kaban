@@ -2,24 +2,22 @@
 
 public sealed record TaskCreateRequestDto(
     string Name,
-    string Description,
+    string? Description,
     int Priority,
-    DateTime Deadline,
-    int BoardId,
-    int UserId,
+    DateTime? Deadline,
+    int? UserId,
     int ColumnId,
-    int Order,
-    int[] TagIds);
+    int[]? TagIds);
 
 public sealed record TaskCreateResponseDto(
     int Id,
     string Name,
-    string Description,
+    string? Description,
     int Priority,
-    DateTime Deadline,
-    int BoardId,
-    int UserId,
-    int ColumnId,
+    DateTime? Deadline,
+    int KanbanId,
+    int? UserId,
     int Order,
-    int[] TagIds
+    int ColumnId,
+    int[]? TagIds
 );
