@@ -1,7 +1,4 @@
-﻿using Kaban.Worker.Infrastructure.Database.Domain;
-using Microsoft.EntityFrameworkCore;
-
-namespace Kaban.Worker.Infrastructure.Database;
+﻿namespace Kaban.Worker.Infrastructure.Database;
 
 public static class TableExtensions
 {
@@ -23,15 +20,5 @@ public static class TableExtensions
         }
         
         return new string(buffer[..pos]);
-    }
-}
-
-public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options) : DbContext(options)
-{
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.HasPostgresEnum<PriorityEnum>("task_priority");
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof( ).Assembly);
     }
 }
