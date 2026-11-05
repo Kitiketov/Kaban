@@ -1,6 +1,6 @@
 using MediatR;
 
-namespace Kaban.Api.Features.Tasks.CreateTask;
+namespace Kaban.Api.Features.Tasks.Application.CreateTask;
 
 public sealed record CreateTaskCommand(
     string Name,
