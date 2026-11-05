@@ -1,6 +1,7 @@
 ﻿namespace Contracts.Features.Tasks;
 
-public class TaskCreateSuccess
+public record TaskCreateSuccess
 {
     public int TaskId { get; set; }
+    public int Order { get; set; }
 }
