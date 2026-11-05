@@ -1,7 +1,10 @@
-using Contracts.Features.Tasks;
+using System.Threading.RateLimiting;
 using Contracts.Features.Boards;
+using Contracts.Features.Tasks;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
+using Kaban.Api.Features.Auth.Infrastructure;
+using Kaban.Contracts.Users;
 using MassTransit;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -42,12 +45,31 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<MessagingExceptionHandler>();
 builder.Services.AddCustomExceptionHandlers();
+builder.Services.AddKabanAuth(builder.Configuration);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+});
 builder.Services.AddHealthChecks();
 
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddMassTransit(x =>
 {
+    var seconds = builder.Configuration.GetValue("Messaging:RequestTimeoutSeconds", 30);
+    if (seconds is < 1 or > 120) throw new InvalidOperationException("Messaging timeout must be 1–120 seconds.");
+    var timeout = RequestTimeout.After(s: seconds);
+    x.AddRequestClient<RegisterUserRequested>(timeout);
+    x.AddRequestClient<GetCredentialsRequested>(timeout);
+    x.AddRequestClient<GetUserRequested>(timeout);
+    x.AddRequestClient<SearchUsersRequested>(timeout);
     x.AddRequestClient<TaskCreateEvent>();
     x.AddRequestClient<CreateBoardRequest>(RequestTimeout.After(s: 30));
     x.AddRequestClient<ListBoardsRequest>(RequestTimeout.After(s: 30));
@@ -79,6 +101,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
