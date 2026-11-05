@@ -4,11 +4,6 @@
     <RootNamespace>Kaban.Worker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Contracts">
-      <HintPath>..\Api\bin\Debug\net10.0\Contracts.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
 
     <PackageReference Include="CodoMetis.ValueRanges.EFCore.PostgreSQL.NodaTime" Version="10.4.0" />

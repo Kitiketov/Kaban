@@ -18,7 +18,7 @@ public static class TableExtensions
             else
                 buffer[pos++] = current;
         }
-        
+
         return new string(buffer[..pos]);
     }
 }
