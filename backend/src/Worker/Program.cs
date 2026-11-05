@@ -1,5 +1,6 @@
-using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Features.Boards;
+using Kaban.Worker.Features.Tasks;
+using Kaban.Worker.Features.Users;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +42,10 @@ builder.Services.AddDbContext<KabanDatabaseContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
 {
+    x.AddConsumer<RegisterUserConsumer>();
+    x.AddConsumer<GetCredentialsConsumer>();
+    x.AddConsumer<GetUserConsumer>();
+    x.AddConsumer<SearchUsersConsumer>();
     x.AddConsumer<TaskCreateConsumer>();
     x.AddConsumer<CreateBoardConsumer>();
     x.AddConsumer<ListBoardsConsumer>();
@@ -65,6 +70,7 @@ builder.Services.AddMassTransit(x =>
             h.Password(password);
         });
 
+        cfg.UseMessageRetry(r => r.Interval(2, TimeSpan.FromMilliseconds(200)));
         cfg.ConfigureEndpoints(context);
     });
 });
