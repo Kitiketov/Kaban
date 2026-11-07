@@ -1,4 +1,3 @@
-using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +13,7 @@ builder.Services.AddDbContext<KabanDatabaseContext>(
     opt => opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
     {
-        x.AddConsumer<TaskCreateConsumer>();     
+        x.AddConsumers(typeof(Program).Assembly);     
         x.UsingRabbitMq((context, cfg) => 
         { 
             var configuration = context.GetRequiredService<IConfiguration>();

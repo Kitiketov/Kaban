@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kaban.Worker.Features.Tasks;
 
-public abstract class TaskCreateConsumer(
+public class TaskCreateConsumer(
     KabanDatabaseContext dbContext,
     ILogger<TaskCreateConsumer> logger) : IConsumer<CreateTaskRequest>
 {
