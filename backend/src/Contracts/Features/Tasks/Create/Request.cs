@@ -1,4 +1,4 @@
-﻿namespace Contracts.Features.Tasks;
+﻿namespace Contracts.Features.Tasks.Create;
 
 public sealed record CreateTaskRequest(
     string Name,
