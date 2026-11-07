@@ -21,6 +21,6 @@ public class TaskController(IMediator mediator) : ControllerBase
                 request.UserId,
                 request.ColumnId,
                 request.TagIds), ct);
-        return CreatedAtAction(nameof(Create), new { id = kanbanId }, result);
+        return CreatedAtAction(nameof(Create), result);
     }
 }
