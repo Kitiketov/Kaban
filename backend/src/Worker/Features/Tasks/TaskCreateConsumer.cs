@@ -1,4 +1,5 @@
-﻿using Contracts.Features.Tasks;
+﻿using Contracts.Features.Tasks.Common;
+using Contracts.Features.Tasks.Create;
 using Kaban.Worker.Infrastructure.Database;
 using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
@@ -23,7 +24,7 @@ public abstract class TaskCreateConsumer(
 
         if (!columnExist)
         {
-            await context.RespondAsync(new CreateTaskColumnNotFound
+            await context.RespondAsync(new TaskColumnNotFound
             (
                 BoardId: message.KanbanId,
                 ColumnId: message.ColumnId
@@ -39,7 +40,7 @@ public abstract class TaskCreateConsumer(
         var userExist = await TryPinTaskToUser(message, entityTask, ct);
         if (!userExist)
         {
-            await context.RespondAsync(new CreateTaskUserNotFound
+            await context.RespondAsync(new TaskUserNotFound
             (
                 UserId: message.UserId!.Value
             ));
@@ -50,7 +51,7 @@ public abstract class TaskCreateConsumer(
 
         await tx.CommitAsync(ct);
 
-        await context.RespondAsync(new CreateTaskSuccess
+        await context.RespondAsync(new TaskSuccess
         {
             Id = entityTask.Id,
             Name = entityTask.Name,
@@ -58,7 +59,7 @@ public abstract class TaskCreateConsumer(
             Priority = (int)entityTask.Priority,
             Deadline = entityTask.Deadline,
             Order = entityTask.TaskOrder,
-            ColumnId = entityTask.BoardColumnId,
+            ColumnId = entityTask.BoardColumnId
         });
     }
 

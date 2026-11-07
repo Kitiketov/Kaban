@@ -1,18 +1,17 @@
 namespace Contracts.Features.Tasks.Common;
 
+public interface ITaskFailed;
+
 public sealed record TaskNotFound(
     int TaskId,
-    string Message = "Задача с указанным идентификатором не найдена.");
+    string Message = "Задача с указанным идентификатором не найдена") : ITaskFailed;
 
-public sealed record CreateTaskColumnNotFound(
+public sealed record TaskColumnNotFound(
     int BoardId,
     int ColumnId,
-    string Message = "Указанная колонка не существует или не принадлежит данной доске.");
+    string Message = "Указанная колонка не существует или не принадлежит данной доске") : ITaskFailed;
 
-public sealed record CreateTaskUserNotFound(
+public sealed record TaskUserNotFound(
     int UserId,
-    string Message = "Пользователь с указанным идентификатором не найден.");
+    string Message = "Пользователь с указанным идентификатором не найден") : ITaskFailed;
 
-public sealed record CreateUserNotFound(
-    int UserId,
-    string Message = "Пользователь с указанным идентификатором не найден.");
