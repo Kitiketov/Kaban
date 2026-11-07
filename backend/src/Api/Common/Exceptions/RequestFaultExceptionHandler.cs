@@ -13,7 +13,7 @@ public class RequestFaultExceptionHandler : IExceptionHandler
         if (exception is not RequestFaultException requestFaultException)
             return false;
 
-        var result = Results.BadRequest(new
+        var result = Results.InternalServerError(new
         {
             error = "Request Fault",
             message = requestFaultException.Message

@@ -12,7 +12,10 @@ public sealed class CreateTaskCommandValidator : AbstractValidator<CreateTaskCom
 
         RuleFor(x => x.KanbanId)
             .GreaterThan(0).WithMessage("Идентификатор доски должен быть больше нуля.");
-
+      
+        RuleFor(x => x.UserId)
+            .GreaterThan(0).WithMessage("Идентификатор пользователя должен быть больше нуля.");
+        
         RuleFor(x => x.ColumnId)
             .GreaterThan(0).WithMessage("Идентификатор колонки должен быть больше нуля.");
 
