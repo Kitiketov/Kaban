@@ -1,5 +1,4 @@
-using Contracts.Features.Tasks;
-using FluentValidation;
+using Contracts.Features.Tasks.Create;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using MassTransit;
@@ -18,12 +17,11 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddProblemDetails();
 builder.Services.AddCustomExceptionHandlers();
 builder.Services.AddHealthChecks();
-builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddMassTransit(x =>
 {
-    x.AddRequestClient<CreateTaskRequest>(); 
+    x.AddRequestClients(); 
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();

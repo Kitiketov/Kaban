@@ -1,4 +1,7 @@
-﻿using Kaban.Api.Features.Tasks.Application.CreateTask;
+﻿using Kaban.Api.Features.Tasks.Application;
+using Kaban.Api.Features.Tasks.Application.Common.Dto;
+using Kaban.Api.Features.Tasks.Application.Create;
+using MassTransit.Futures.Contracts;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,11 +9,11 @@ namespace Kaban.Api.Features.Tasks.Presentation;
 
 [ApiController]
 [Route("api/kanbans/{kanbanId:int}/tasks")]
-public class TaskController(IMediator mediator) : ControllerBase
+public class TaskOnBoardController(IMediator mediator) : ControllerBase
 {
     [HttpPost]
-    public async Task<ActionResult<TaskCreateResponseDto>> Create(
-        [FromBody] TaskCreateRequestDto request, int kanbanId, CancellationToken ct)
+    public async Task<ActionResult<TaskResponseDto>> Create(
+        [FromBody] TaskRequestDto request, int kanbanId, CancellationToken ct)
     {
         var result = await mediator.Send(
             new CreateTaskCommand(request.Name,
