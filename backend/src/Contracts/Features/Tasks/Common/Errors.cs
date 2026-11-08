@@ -15,3 +15,7 @@ public sealed record TaskUserNotFound(
     int UserId,
     string Message = "Пользователь с указанным идентификатором не найден") : ITaskFailed;
 
+public sealed record TaskNotInColumn(
+    int TaskId,
+    int ColumnId,
+    string Message = "Задача не существет в заданной колонке") : ITaskFailed;

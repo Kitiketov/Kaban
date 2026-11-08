@@ -10,7 +10,7 @@ public sealed record TaskResponseDto(
     DateTime? Deadline,
     int? KanbanId,
     int? UserId,
-    int Order,
+    string Rank,
     int ColumnId,
     int[]? TagIds
 )
@@ -29,7 +29,7 @@ public sealed record TaskResponseDto(
             taskSuccess.Deadline,
             kabanId,
             userId,
-            taskSuccess.Order,
+            taskSuccess.Rank,
             taskSuccess.ColumnId,
             tagIds
         );

@@ -4,7 +4,6 @@ using Kaban.Api.Features.Tasks.Application.Move;
 using Kaban.Api.Features.Tasks.Application.Update;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
-using TaskMoveRequestDto = Kaban.Api.Features.Tasks.Application.Update.TaskMoveRequestDto;
 
 namespace Kaban.Api.Features.Tasks.Presentation;
 
@@ -36,7 +35,8 @@ public class TaskController(IMediator mediator) : ControllerBase
             new MoveTaskCommand(
                 taskId,
                 request.ColumnId,
-                request.Order), ct);
+                request.PrevTaskId,
+                request.NextTaskId), ct);
     }
 
     [HttpDelete]

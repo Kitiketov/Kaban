@@ -3,4 +3,5 @@
 public sealed record MoveTaskRequest(
     int TaskId,
     int ColumnId,
-    int Order);
+    int? PrevTaskId,
+    int? NextTaskId);

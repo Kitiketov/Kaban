@@ -6,4 +6,5 @@ namespace Kaban.Api.Features.Tasks.Application.Move;
 public sealed record MoveTaskCommand(
     int TaskId,
     int ColumnId,
-    int Order) : IRequest<TaskResponseDto>;
+    int? PrevTaskId,                                                                                                                                                          
+    int? NextTaskId ) : IRequest<TaskResponseDto>;

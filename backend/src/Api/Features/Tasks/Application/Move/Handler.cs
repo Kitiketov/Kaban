@@ -13,7 +13,7 @@ public class Handler(IRequestClient<MoveTaskRequest> requestClient)
 {
     public async Task<TaskResponseDto> Handle(MoveTaskCommand request, CancellationToken ct)
     {
-        var moveTaskRequest = new MoveTaskRequest(request.TaskId, request.ColumnId, request.Order);
+        var moveTaskRequest = new MoveTaskRequest(request.TaskId, request.ColumnId, request.PrevTaskId, request.NextTaskId);
         var response = await requestClient.GetResponse<
             TaskSuccess, 
             ITaskFailed>(moveTaskRequest, ct);

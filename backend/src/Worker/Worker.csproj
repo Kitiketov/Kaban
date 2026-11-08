@@ -4,6 +4,7 @@
     <RootNamespace>Kaban.Worker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="LexoRank" Version="1.0.10" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
 
     <PackageReference Include="CodoMetis.ValueRanges.EFCore.PostgreSQL.NodaTime" Version="10.4.0" />
@@ -15,6 +16,7 @@
     </PackageReference>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.3" />
+    <PackageReference Include="OneOf" Version="3.0.271" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Contracts\Contracts.csproj" />

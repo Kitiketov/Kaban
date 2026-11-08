@@ -11,6 +11,7 @@ public static class TaskResponseExtensions
         TaskNotFound e => new NotFoundException($"{e.Message} TaskId: {e.TaskId}"),
         TaskColumnNotFound e => new NotFoundException($"{e.Message} ColumnId: {e.ColumnId} BoardId: {e.BoardId}"),
         TaskUserNotFound e => new NotFoundException($"{e.Message} UserId: {e.UserId}"),
+        TaskNotInColumn e => new NotFoundException($"{e.Message}  TaskId: {e.TaskId} ColumnId: {e.ColumnId}"),
         _ => new InvalidOperationException($"Незарегистрированная ошибка Worker")
     };
 

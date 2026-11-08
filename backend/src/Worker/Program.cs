@@ -1,3 +1,4 @@
+using Kaban.Worker.Features.Tasks.Application;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +10,7 @@ builder.Logging.Configure(options =>
         | ActivityTrackingOptions.SpanId
         | ActivityTrackingOptions.ParentId);
 builder.Logging.AddConsole(options => options.IncludeScopes = true);
+builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddDbContext<KabanDatabaseContext>(
     opt => opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
