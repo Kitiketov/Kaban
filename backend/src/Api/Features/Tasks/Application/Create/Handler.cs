@@ -29,6 +29,6 @@ public sealed class CreateTaskHandler(IRequestClient<CreateTaskRequest> requestC
             TaskSuccess,
             ITaskFailed>(createTaskEvent, ct);
 
-        return TaskResponseDto.FromSuccess(response.EnsureSuccess());
+        return TaskResponseDto.FromSuccess(response.EnsureSuccess(), command.KanbanId, command.UserId);
     }
 }

@@ -24,6 +24,6 @@ public class TaskOnBoardController(IMediator mediator) : ControllerBase
                 request.UserId,
                 request.ColumnId,
                 request.TagIds), ct);
-        return CreatedAtAction(nameof(Create), result);
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 }

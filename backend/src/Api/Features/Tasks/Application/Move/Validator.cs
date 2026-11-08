@@ -11,8 +11,5 @@ public sealed class MoveTaskCommandValidator : AbstractValidator<MoveTaskCommand
 
         RuleFor(x => x.ColumnId)
             .GreaterThan(0).WithMessage("Идентификатор колонки должен быть больше нуля.");
-
-        RuleFor(x => x.Order)
-            .GreaterThanOrEqualTo(0).WithMessage("Позиция задачи не может быть отрицательной.");
     }
 }

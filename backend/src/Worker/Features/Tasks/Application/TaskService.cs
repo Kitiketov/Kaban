@@ -56,7 +56,8 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
             Priority = (int)entityTask.Priority,
             Deadline = entityTask.Deadline,
             Rank = entityTask.TaskRank,
-            ColumnId = entityTask.BoardColumnId
+            ColumnId = entityTask.BoardColumnId,
+            UserId = request.UserId
         };
     }
 
@@ -146,9 +147,11 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
                 return new TaskColumnNotFound(kanbanIdIfFailed.Value, request.ColumnId);
             task.TaskRank = await FindNextColumnRank(task.BoardColumnId, ct);
         }
+
         var boardId = await GetBoardIdByColumn(task.BoardColumnId, ct);
-        var userExist = await TryPinTaskToUser(request.UserId, boardId,  task, ct);
-        
+
+        var userExist = await TrySyncUserTask(request.UserId, boardId, task, ct);
+
         if (!userExist)
         {
             return new TaskUserNotFound
@@ -156,15 +159,15 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
                 UserId: request.UserId!.Value
             );
         }
-        
+
         task.Name = request.Name;
         task.Description = request.Description;
         task.Deadline = request.Deadline;
         task.Priority = (PriorityEnum)request.Priority;
-        
+
         dbContext.Update(task);
         await dbContext.SaveChangesAsync(ct);
-        
+
         return new TaskSuccess
         {
             Id = task.Id,
@@ -176,7 +179,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
             ColumnId = task.BoardColumnId
         };
     }
-    
+
     private static void UpdateRank(Infrastructure.Database.Domain.Tasks task, string? prevTaskTaskRank,
         string? nextTaskTaskRank)
     {
@@ -217,14 +220,16 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
     private async Task<int> GetBoardIdByColumn(int taskBoardColumnId, CancellationToken ct)
     {
         var boardColumn = await dbContext.BoardColumns.FindAsync(taskBoardColumnId, ct);
-        return boardColumn?.BoardId ?? throw new InvalidOperationException($"Board column {taskBoardColumnId} not found in table");
+        return boardColumn?.BoardId ??
+               throw new InvalidOperationException($"Board column {taskBoardColumnId} not found in table");
     }
 
     private async Task<bool> TryPinTaskToUser(int? userId, int kanbanId,
         Infrastructure.Database.Domain.Tasks entityTask, CancellationToken ct)
     {
         if (userId is null) return true;
-
+        var currentUser = await dbContext.UserTasks.FindAsync(entityTask.Id, userId, ct);
+        if (userId == currentUser?.UserId) return true;
         var userExist = await CheckUserExist(userId.Value, kanbanId, ct);
         if (!userExist) return false;
 
@@ -234,6 +239,39 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
             Task = entityTask
         };
         await dbContext.UserTasks.AddAsync(userTask, ct);
+
+        return true;
+    }
+
+    private async Task<bool> TrySyncUserTask(int? userId, int kanbanId,
+        Infrastructure.Database.Domain.Tasks task, CancellationToken ct)
+    {
+        if (userId.HasValue)
+        {
+            var userExist = await CheckUserExist(userId.Value, kanbanId, ct);
+            if (!userExist) return false;
+        }
+
+        var existingUserTasks = await dbContext.UserTasks
+            .Where(ut => ut.TaskId == task.Id)
+            .ToListAsync(ct);
+
+        if (userId.HasValue)
+        {
+            if (existingUserTasks.Count == 1 && existingUserTasks[0].UserId == userId.Value)
+                return true;
+
+            dbContext.UserTasks.RemoveRange(existingUserTasks);
+            await dbContext.UserTasks.AddAsync(new UserTasks
+            {
+                UserId = userId.Value,
+                TaskId = task.Id
+            }, ct);
+        }
+        else
+        {
+            if (existingUserTasks.Count > 0) dbContext.UserTasks.RemoveRange(existingUserTasks);
+        }
 
         return true;
     }

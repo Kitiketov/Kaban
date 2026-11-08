@@ -13,9 +13,9 @@ public class TasksUpdateConsumer(
         var ct = context.CancellationToken;
         var message = context.Message;
         
-        var moveTaskResult = await taskService.Update(message, ct);
+        var updateTaskResult = await taskService.Update(message, ct);
         
-        await moveTaskResult.Match(                                                                                                                                                       
+        await updateTaskResult.Match(                                                                                                                                                       
             success      => context.RespondAsync(success),                                                                                                                        
             taskNotFound  => context.RespondAsync(taskNotFound),                                                                                                               
             taskColumnNotFound  => context.RespondAsync(taskColumnNotFound) ,                                                                                                              
