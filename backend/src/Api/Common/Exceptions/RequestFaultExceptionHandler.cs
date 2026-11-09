@@ -16,7 +16,7 @@ public class RequestFaultExceptionHandler(ILogger<RequestFaultExceptionHandler> 
         logger.LogError("Worker request fault for {Method} {Path}", httpContext.Request.Method,
             httpContext.Request.Path);
 
-        var result = Results.BadRequest(new
+        var result = Results.InternalServerError(new
         {
             error = "Request Fault",
             message = requestFaultException.Message

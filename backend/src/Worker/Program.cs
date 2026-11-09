@@ -1,5 +1,4 @@
-using Kaban.Worker.Features.Tasks;
-using Kaban.Worker.Features.Boards;
+using Kaban.Worker.Features.Tasks.Application;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -40,24 +39,16 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddDbContext<KabanDatabaseContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
-{
-    x.AddConsumer<TaskCreateConsumer>();
-    x.AddConsumer<CreateBoardConsumer>();
-    x.AddConsumer<ListBoardsConsumer>();
-    x.AddConsumer<GetBoardConsumer>();
-    x.AddConsumer<RenameBoardConsumer>();
-    x.AddConsumer<DeleteBoardConsumer>();
-    x.AddConsumer<AddBoardColumnConsumer>();
-    x.AddConsumer<RenameBoardColumnConsumer>();
-    x.AddConsumer<DeleteBoardColumnConsumer>();
-    x.UsingRabbitMq((context, cfg) =>
     {
-        var configuration = context.GetRequiredService<IConfiguration>();
-        var rabbitConfig = configuration.GetSection("RabbitMq");
-
-        var host = rabbitConfig["Host"] ?? "localhost";
-        var username = rabbitConfig["Username"] ?? "kaban";
-        var password = rabbitConfig["Password"] ?? "local_dev_password";
+        x.AddConsumers(typeof(Program).Assembly);     
+        x.UsingRabbitMq((context, cfg) => 
+        { 
+            var configuration = context.GetRequiredService<IConfiguration>();
+            var rabbitConfig = configuration.GetSection("RabbitMq");
+        
+            var host = rabbitConfig["Host"] ?? "localhost";
+            var username = rabbitConfig["Username"] ?? "kaban";
+            var password = rabbitConfig["Password"] ?? "local_dev_password";
 
         cfg.Host(host, h =>
         {
@@ -65,9 +56,9 @@ builder.Services.AddMassTransit(x =>
             h.Password(password);
         });
 
-        cfg.ConfigureEndpoints(context);
+            cfg.ConfigureEndpoints(context);
+        }); 
     });
-});
 
 var app = builder.Build();
 app.MapHealthChecks("/health/live");

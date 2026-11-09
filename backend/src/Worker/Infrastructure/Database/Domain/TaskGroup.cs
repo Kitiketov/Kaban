@@ -26,7 +26,7 @@ public class Tasks : ITable
     public PriorityEnum Priority { get; set; } = PriorityEnum.NoPriority;
     public DateTime Created { get; set; }
     public DateTime? Deadline { get; set; }
-    public int TaskOrder { get; set; }
+    public required string TaskRank { get; set; }
 
     public int BoardColumnId { get; set; }
     public BoardColumns? BoardColumn { get; set; }
@@ -61,12 +61,15 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
             .IsRequired();
         builder.Property(x => x.Deadline)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.Deadline)));
-        builder.Property(x => x.TaskOrder)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.TaskOrder)));
+        builder.Property(x => x.TaskRank)
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.TaskRank)))
+            .HasMaxLength(128)
+            .UseCollation("C")
+            .IsRequired();
         builder.Property(x => x.BoardColumnId)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.BoardColumnId)));
         builder.HasIndex(x => x.BoardColumnId);
-        builder.HasIndex(x => new { x.BoardColumnId, x.TaskOrder }).IsUnique();
+        builder.HasIndex(x => new { x.BoardColumnId, x.TaskRank }).IsUnique();
         builder.HasOne(x => x.BoardColumn).WithMany().HasForeignKey(x => x.BoardColumnId);
     }
 }

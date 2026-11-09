@@ -223,15 +223,18 @@ namespace Kaban.Worker.Migrations
                         .HasColumnName("priority")
                         .HasDefaultValueSql("'NoPriority'");
 
-                    b.Property<int>("TaskOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("task_order");
+                    b.Property<string>("TaskRank")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("task_rank")
+                        .UseCollation("C");
 
                     b.HasKey("Id");
 
                     b.HasIndex("BoardColumnId");
 
-                    b.HasIndex("BoardColumnId", "TaskOrder")
+                    b.HasIndex("BoardColumnId", "TaskRank")
                         .IsUnique();
 
                     b.ToTable("tasks", null, t =>

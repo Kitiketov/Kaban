@@ -1,3 +1,4 @@
+using FluentValidation;
 using Kaban.Api.Common.Validation;
 using MediatR;
 using FluentValidation;
@@ -11,6 +12,7 @@ public static class ApplicationRegistration
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Program).Assembly));
         services.AddValidatorsFromAssembly(typeof(Program).Assembly);
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+        services.AddValidatorsFromAssembly(typeof(Program).Assembly);
         return services;
     }
 }
