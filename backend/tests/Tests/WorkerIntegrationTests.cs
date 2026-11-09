@@ -1,7 +1,6 @@
-using Kaban.Contracts.Users;
+using Contracts.Features.Users;
 using Kaban.Worker.Features.Users;
 using Kaban.Worker.Infrastructure.Database;
-using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
