@@ -1,8 +1,3 @@
-using Contracts.Features.Boards;
-using Contracts.Features.Tasks.Create;
-using Contracts.Features.Tasks.Delete;
-using Contracts.Features.Tasks.Move;
-using Contracts.Features.Tasks.Update;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using MassTransit;
@@ -51,18 +46,7 @@ builder.Services.AddHealthChecks();
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddMassTransit(x =>
 {
-    x.AddRequestClient<CreateTaskRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteTaskRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<MoveTaskRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<UpdateTaskRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<CreateBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<ListBoardsRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<GetBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<RenameBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<AddBoardColumnRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<RenameBoardColumnRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteBoardColumnRequest>(RequestTimeout.After(s: 30));
+    x.AddKabanRequestClients();
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();
