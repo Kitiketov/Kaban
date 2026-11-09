@@ -55,9 +55,9 @@ builder.Services.AddMassTransit(x =>
             h.Password(password);
         });
 
-            cfg.ConfigureEndpoints(context);
-        }); 
+        cfg.ConfigureEndpoints(context);
     });
+});
 
 var app = builder.Build();
 app.MapHealthChecks("/health/live");

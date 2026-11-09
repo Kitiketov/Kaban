@@ -6,7 +6,6 @@
   <ItemGroup>
     <PackageReference Include="LexoRank" Version="1.0.10" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
-
     <PackageReference Include="CodoMetis.ValueRanges.EFCore.PostgreSQL.NodaTime" Version="10.4.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
