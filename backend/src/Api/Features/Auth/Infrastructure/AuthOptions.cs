@@ -8,4 +8,3 @@ public sealed class AuthOptions
     public int AccessMinutes { get; set; } = 15;
     public int RefreshDays { get; set; } = 7;
 }
-

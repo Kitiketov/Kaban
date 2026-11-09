@@ -48,7 +48,8 @@ builder.Services.AddSwaggerGen(options =>
         Type = SecuritySchemeType.Http,
         Scheme = "bearer",
         BearerFormat = "JWT",
-        Description = "Paste the accessToken without the Bearer prefix. For POST /api/auth/tokens/refresh, use the refreshToken instead."
+        Description =
+            "Paste the accessToken without the Bearer prefix. For POST /api/auth/tokens/refresh, use the refreshToken instead."
     });
     options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
     {

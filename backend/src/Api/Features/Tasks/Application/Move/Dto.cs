@@ -2,6 +2,6 @@
 
 public sealed record TaskMoveRequestDto(
     int ColumnId,
-    int? PrevTaskId,                                                                                                                                                          
-    int? NextTaskId 
+    int? PrevTaskId,
+    int? NextTaskId
 );

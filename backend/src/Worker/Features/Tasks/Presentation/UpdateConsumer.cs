@@ -12,14 +12,14 @@ public class TasksUpdateConsumer(
     {
         var ct = context.CancellationToken;
         var message = context.Message;
-        
+
         var updateTaskResult = await taskService.Update(message, ct);
-        
-        await updateTaskResult.Match(                                                                                                                                                       
-            success      => context.RespondAsync(success),                                                                                                                        
-            taskNotFound  => context.RespondAsync(taskNotFound),                                                                                                               
-            taskColumnNotFound  => context.RespondAsync(taskColumnNotFound) ,                                                                                                              
-            taskNotInColumn  => context.RespondAsync(taskNotInColumn)                                                                                                               
-        );                                                                                                            
+
+        await updateTaskResult.Match(
+            success => context.RespondAsync(success),
+            taskNotFound => context.RespondAsync(taskNotFound),
+            taskColumnNotFound => context.RespondAsync(taskColumnNotFound),
+            taskNotInColumn => context.RespondAsync(taskNotInColumn)
+        );
     }
 }

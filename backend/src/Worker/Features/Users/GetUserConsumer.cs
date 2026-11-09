@@ -12,7 +12,7 @@ public sealed class GetUserConsumer(KabanDatabaseContext db) : IConsumer<GetUser
     {
         var user = await db.Set<UserEntity>().AsNoTracking().Where(x => x.Id == context.Message.UserId)
             .Select(x => new UserResult(x.Id, x.Name, x.Email)).SingleOrDefaultAsync(context.CancellationToken);
-        if (user is null) 
+        if (user is null)
             await context.RespondAsync(new UserFailure("not_found"));
         else await context.RespondAsync(user);
     }

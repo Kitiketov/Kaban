@@ -1,5 +1,7 @@
 using FluentValidation;
+
 namespace Kaban.Api.Features.Users.Application.Register;
+
 public sealed class RegisterUserValidator : AbstractValidator<RegisterUserCommand>
 {
     public RegisterUserValidator()
@@ -9,4 +11,3 @@ public sealed class RegisterUserValidator : AbstractValidator<RegisterUserComman
         RuleFor(x => x.Password).NotEmpty().MinimumLength(8).MaximumLength(1024);
     }
 }
-

@@ -13,14 +13,14 @@ public class TasksMoveConsumer(
         var ct = context.CancellationToken;
         var message = context.Message;
         logger.LogInformation("Moving task '{TaskId}'", message.TaskId);
-        
+
         var moveTaskResult = await taskService.Move(message, ct);
-        
-        await moveTaskResult.Match(                                                                                                                                                       
-            success      => context.RespondAsync(success),                                                                                                                        
-            taskNotFound  => context.RespondAsync(taskNotFound),                                                                                                               
-            taskColumnNotFound  => context.RespondAsync(taskColumnNotFound) ,                                                                                                              
-            taskNotInColumn  => context.RespondAsync(taskNotInColumn)                                                                                                               
-        );  
+
+        await moveTaskResult.Match(
+            success => context.RespondAsync(success),
+            taskNotFound => context.RespondAsync(taskNotFound),
+            taskColumnNotFound => context.RespondAsync(taskColumnNotFound),
+            taskNotInColumn => context.RespondAsync(taskNotInColumn)
+        );
     }
 }

@@ -3,7 +3,7 @@ using Contracts.Features.Tasks.Create;
 using Contracts.Features.Tasks.Delete;
 using Contracts.Features.Tasks.Move;
 using Contracts.Features.Tasks.Update;
-using OneOf;   
+using OneOf;
 
 namespace Kaban.Worker.Features.Tasks.Application;
 
@@ -17,5 +17,6 @@ public interface ITaskService
     Task<OneOf<TaskSuccess, TaskNotFound, TaskColumnNotFound, TaskNotInColumn>> Move(MoveTaskRequest request,
         CancellationToken ct);
 
-    Task<OneOf<TaskSuccess, TaskNotFound, TaskColumnNotFound, TaskUserNotFound>> Update(UpdateTaskRequest request, CancellationToken ct);
+    Task<OneOf<TaskSuccess, TaskNotFound, TaskColumnNotFound, TaskUserNotFound>> Update(UpdateTaskRequest request,
+        CancellationToken ct);
 }

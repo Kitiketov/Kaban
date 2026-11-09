@@ -13,12 +13,12 @@ public class TaskDeleteConsumer(
         var ct = context.CancellationToken;
         var message = context.Message;
         logger.LogInformation("Deleting task '{TaskId}'", message.TaskId);
-        
+
         var deleteTaskResult = await taskService.Delete(message, ct);
-        
-        await deleteTaskResult.Match(                                                                                                                                                       
-            success      => context.RespondAsync(success),                                                                                                                        
-            taskNotFound  => context.RespondAsync(taskNotFound)                                                                                                               
-        );  
+
+        await deleteTaskResult.Match(
+            success => context.RespondAsync(success),
+            taskNotFound => context.RespondAsync(taskNotFound)
+        );
     }
 }

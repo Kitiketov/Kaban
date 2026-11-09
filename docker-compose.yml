@@ -56,7 +56,7 @@ services:
       dockerfile: deploy/docker/Api.Dockerfile
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      Auth__SigningKey: ${KABAN_AUTH_SIGNING_KEY:?Set KABAN_AUTH_SIGNING_KEY to a random secret of at least 32 bytes}
+      Auth__SigningKey: ${KABAN_AUTH_SIGNING_KEY:-7VshwM2uV6LpEwK9YFm8NxQr4tZ2bX1c5N8JkWq3mP0=}
       ASPNETCORE_URLS: http://0.0.0.0:80
       RabbitMq__Host: rabbitmq
       RabbitMq__Username: kaban

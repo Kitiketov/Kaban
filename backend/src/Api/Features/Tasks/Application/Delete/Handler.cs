@@ -3,6 +3,7 @@ using Contracts.Features.Tasks.Delete;
 using MassTransit;
 using MediatR;
 using Kaban.Api.Features.Tasks.Application.Common;
+
 namespace Kaban.Api.Features.Tasks.Application.Delete;
 
 public class Handler(IRequestClient<DeleteTaskRequest> requestClient) : IRequestHandler<DeleteTaskCommand>

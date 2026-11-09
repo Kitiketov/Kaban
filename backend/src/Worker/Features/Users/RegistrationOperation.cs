@@ -11,6 +11,7 @@ public sealed class RegistrationOperation
     public int UserId { get; set; }
     public DateTime CreatedAt { get; set; }
 }
+
 public sealed class RegistrationOperationConfiguration : IEntityTypeConfiguration<RegistrationOperation>
 {
     public void Configure(EntityTypeBuilder<RegistrationOperation> builder)
@@ -22,4 +23,3 @@ public sealed class RegistrationOperationConfiguration : IEntityTypeConfiguratio
             .HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
     }
 }
-

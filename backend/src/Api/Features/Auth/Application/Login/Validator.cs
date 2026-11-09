@@ -1,5 +1,7 @@
 using FluentValidation;
+
 namespace Kaban.Api.Features.Auth.Application.Login;
+
 public sealed class LoginValidator : AbstractValidator<LoginCommand>
 {
     public LoginValidator()
@@ -8,4 +10,3 @@ public sealed class LoginValidator : AbstractValidator<LoginCommand>
         RuleFor(x => x.Password).NotEmpty().MaximumLength(1024);
     }
 }
-

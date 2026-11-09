@@ -38,16 +38,16 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddDbContext<KabanDatabaseContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddMassTransit(x =>
+{
+    x.AddConsumers(typeof(Program).Assembly);
+    x.UsingRabbitMq((context, cfg) =>
     {
-        x.AddConsumers(typeof(Program).Assembly);     
-        x.UsingRabbitMq((context, cfg) => 
-        { 
-            var configuration = context.GetRequiredService<IConfiguration>();
-            var rabbitConfig = configuration.GetSection("RabbitMq");
-        
-            var host = rabbitConfig["Host"] ?? "localhost";
-            var username = rabbitConfig["Username"] ?? "kaban";
-            var password = rabbitConfig["Password"] ?? "local_dev_password";
+        var configuration = context.GetRequiredService<IConfiguration>();
+        var rabbitConfig = configuration.GetSection("RabbitMq");
+
+        var host = rabbitConfig["Host"] ?? "localhost";
+        var username = rabbitConfig["Username"] ?? "kaban";
+        var password = rabbitConfig["Password"] ?? "local_dev_password";
 
         cfg.Host(host, h =>
         {

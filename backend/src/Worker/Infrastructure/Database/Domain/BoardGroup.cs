@@ -48,7 +48,8 @@ public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardCo
         builder.Property(x => x.Id)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.Id))).ValueGeneratedOnAdd();
         builder.Property(x => x.ColumnName)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.ColumnName))).HasMaxLength(64).IsRequired();
+            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.ColumnName))).HasMaxLength(64)
+            .IsRequired();
         builder.Property(x => x.BoardOrder)
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.BoardOrder)));
         builder.Property(x => x.BoardId)
@@ -63,7 +64,7 @@ public class BoardTags : ITable
 {
     public int TagId { get; set; }
     public TaskTags? Tag { get; set; }
-    
+
     public int BoardId { get; set; }
     public Boards? Board { get; set; }
 }

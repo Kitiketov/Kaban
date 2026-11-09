@@ -17,6 +17,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
 {
     private readonly AuthApiFactory factory;
     private readonly HttpClient client;
+
     public AuthEndpointTests(AuthApiFactory factory)
     {
         this.factory = factory;
@@ -26,7 +27,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task Login_Me_Search_Refresh_UseDistinctTokenPolicies()
     {
-        var login = await client.PostAsJsonAsync("/api/auth/sessions", new { email = " USER@example.com ", password = "good-password" });
+        var login = await client.PostAsJsonAsync("/api/auth/sessions",
+            new { email = " USER@example.com ", password = "good-password" });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         var tokens = (await login.Content.ReadFromJsonAsync<TokenPairDto>())!;
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/users/me")).StatusCode);
@@ -52,7 +54,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
         var before = factory.Services.GetRequiredService<Probe>().Calls;
         var badLogin = await client.PostAsJsonAsync("/api/auth/sessions", new { email = "bad", password = "" });
         Assert.Equal(HttpStatusCode.BadRequest, badLogin.StatusCode);
-        var badRegistration = await client.PostAsJsonAsync("/api/users", new { email = "ok@example.com", name = "Name", password = "short" });
+        var badRegistration = await client.PostAsJsonAsync("/api/users",
+            new { email = "ok@example.com", name = "Name", password = "short" });
         Assert.Equal(HttpStatusCode.BadRequest, badRegistration.StatusCode);
         var tokens = factory.Services.GetRequiredService<TokenService>().Create(7);
         client.DefaultRequestHeaders.Authorization = new("Bearer", tokens.AccessToken);
@@ -80,7 +83,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/users")
             {
-                Content = JsonContent.Create(new { email = " NEW@example.com ", name = " New ", password = "good-password" })
+                Content = JsonContent.Create(new
+                    { email = " NEW@example.com ", name = " New ", password = "good-password" })
             };
             var pending = client.SendAsync(request);
             await probe.RegistrationReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -90,7 +94,10 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             Assert.Equal("", await response.Content.ReadAsStringAsync());
         }
-        finally { probe.ReleaseRegistration.TrySetResult(); }
+        finally
+        {
+            probe.ReleaseRegistration.TrySetResult();
+        }
     }
 
     [Theory]
@@ -99,7 +106,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [InlineData(100, HttpStatusCode.ServiceUnavailable)]
     public async Task WorkerErrors_AreDistinctAndDoNotLeakDetails(int userId, HttpStatusCode expected)
     {
-        client.DefaultRequestHeaders.Authorization = new("Bearer", factory.Services.GetRequiredService<TokenService>().Create(userId).AccessToken);
+        client.DefaultRequestHeaders.Authorization = new("Bearer",
+            factory.Services.GetRequiredService<TokenService>().Create(userId).AccessToken);
         var response = await client.GetAsync("/api/users/me");
         Assert.Equal(expected, response.StatusCode);
         Assert.DoesNotContain("private-database-detail", await response.Content.ReadAsStringAsync());
@@ -108,7 +116,8 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task InvalidSignature_IsRejected()
     {
-        var other = new TokenService(new AuthOptions { SigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)) });
+        var other = new TokenService(new AuthOptions
+            { SigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)) });
         client.DefaultRequestHeaders.Authorization = new("Bearer", other.Create(7).AccessToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/users/me")).StatusCode);
     }
@@ -161,10 +170,14 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
         Interlocked.Increment(ref probe.Calls);
         switch (context.Message.UserId)
         {
-            case 88: await context.RespondAsync(new UserFailure("not_found")); return;
+            case 88:
+                await context.RespondAsync(new UserFailure("not_found"));
+                return;
             case 99: throw new InvalidOperationException("private-database-detail");
             case 100: return;
-            default: await context.RespondAsync(new UserResult(7, "User", "user@example.com")); return;
+            default:
+                await context.RespondAsync(new UserResult(7, "User", "user@example.com"));
+                return;
         }
     }
 
@@ -187,4 +200,3 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
         await context.RespondAsync(new UserRegistered(7));
     }
 }
-

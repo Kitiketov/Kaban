@@ -6,16 +6,11 @@ namespace Kaban.Worker.Infrastructure.Database.Domain;
 
 public enum PriorityEnum
 {
-    [Display(Name = "No Priority")]
-    NoPriority,
-    [Display(Name = "Low")]
-    Low,
-    [Display(Name = "Medium")]
-    Medium,
-    [Display(Name = "High")]
-    High,
-    [Display(Name = "Very high")]
-    VeryHigh
+    [Display(Name = "No Priority")] NoPriority,
+    [Display(Name = "Low")] Low,
+    [Display(Name = "Medium")] Medium,
+    [Display(Name = "High")] High,
+    [Display(Name = "Very high")] VeryHigh
 }
 
 public class Tasks : ITable

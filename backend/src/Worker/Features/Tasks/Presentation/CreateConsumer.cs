@@ -16,13 +16,13 @@ public class TaskCreateConsumer(
         var message = context.Message;
 
         logger.LogInformation("Creating task '{Name}' in column {ColumnId}", message.Name, message.ColumnId);
-       
+
         var result = await taskService.Create(message, ct);
-        
-        await result.Match(                                                                                                                                                       
-            success      => context.RespondAsync(success),                                                                                                                        
-            colNotFound  => context.RespondAsync(colNotFound),                                                                                                                    
-            userNotFound => context.RespondAsync(userNotFound)                                                                                                                    
-        );   
+
+        await result.Match(
+            success => context.RespondAsync(success),
+            colNotFound => context.RespondAsync(colNotFound),
+            userNotFound => context.RespondAsync(userNotFound)
+        );
     }
 }

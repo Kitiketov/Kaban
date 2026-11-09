@@ -9,7 +9,7 @@ public static class CustomException
         services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<RequestFaultExceptionHandler>();
         services.AddExceptionHandler<RequestTimeoutExceptionHandler>();
-        
+
         return services;
     }
 }
