@@ -6,6 +6,7 @@ namespace Kaban.Worker.Infrastructure.Database;
 public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options) : DbContext(options)
 {
     public DbSet<Tasks> Tasks => Set<Tasks>();
+    public DbSet<Projects> Projects => Set<Projects>();
     public DbSet<BoardColumns> BoardColumns => Set<BoardColumns>();
     public DbSet<Boards> Boards => Set<Boards>();
     public DbSet<UserTasks> UserTasks => Set<UserTasks>();
