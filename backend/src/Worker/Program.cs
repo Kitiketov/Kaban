@@ -1,5 +1,6 @@
-using Kaban.Worker.Features.Tasks;
+using Kaban.Worker.Features.Tasks.Application;
 using Kaban.Worker.Features.Boards;
+using Kaban.Worker.Features.Tasks.Presentation;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -39,9 +40,13 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter());
 builder.Services.AddDbContext<KabanDatabaseContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<TaskCreateConsumer>();
+    x.AddConsumer<TaskDeleteConsumer>();
+    x.AddConsumer<TasksMoveConsumer>();
+    x.AddConsumer<TasksUpdateConsumer>();
     x.AddConsumer<CreateBoardConsumer>();
     x.AddConsumer<ListBoardsConsumer>();
     x.AddConsumer<GetBoardConsumer>();

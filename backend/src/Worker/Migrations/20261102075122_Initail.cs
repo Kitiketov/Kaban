@@ -183,7 +183,7 @@ namespace Kaban.Worker.Migrations
                     priority = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false, defaultValueSql: "'NoPriority'"),
                     task_created = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now()"),
                     deadline = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    task_order = table.Column<int>(type: "integer", nullable: false),
+                    task_rank = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false, collation: "C"),
                     board_column_id = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
@@ -320,9 +320,9 @@ namespace Kaban.Worker.Migrations
                 column: "board_column_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_tasks_board_column_id_task_order",
+                name: "IX_tasks_board_column_id_task_rank",
                 table: "tasks",
-                columns: new[] { "board_column_id", "task_order" },
+                columns: new[] { "board_column_id", "task_rank" },
                 unique: true);
 
             migrationBuilder.CreateIndex(

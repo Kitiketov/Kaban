@@ -18,7 +18,7 @@
 
 - `Program.cs` регистрирует `AddDbContext<KabanDatabaseContext>(...UseNpgsql(...))` и `AddConsumer<TaskCreateConsumer>()`, `UsingRabbitMq`, `ConfigureEndpoints`.
 - `Features/Tasks/TaskCreateConsumer.cs` строит сущность `Infrastructure.Database.Domain.Tasks`, вызывает `AddAsync` + `SaveChangesAsync` и **после сохранения** `context.RespondAsync<TaskCreateSuccess>({ TaskId = entityTask.Id })`. Именно этот порядок — базовый для новых операций.
-- **Дефекты текущего кода, не копировать:** `using Contracts.Tasks;` не совпадает с контрактом `Contracts.Features.Tasks`; `Worker.csproj` ссылается на файл `../Api/bin/Debug/net10.0/Contracts.dll`, а не на проект Contracts; сохранение пока не использует `context.CancellationToken`; нет идемпотентности, явных retry/outbox, typed business failures.
+- **Дефекты текущего кода, не копировать:** сохранение пока не использует `context.CancellationToken`; нет идемпотентности, явных retry/outbox, typed business failures (пространство имен `Contracts.Features.Tasks` и `ProjectReference` в `Worker.csproj` согласованы, решение успешно собирается).
 - `Worker/appsettings.json` содержит `Host=localhost;Port=55432` для запуска на ноутбуке; в Docker compose для Worker **пока нет** `ConnectionStrings__DefaultConnection` с `Host=postgres;Port=5432`. При изменении запуска исправляй соответствующий env и проверяй `docker compose config --quiet`.
 - В модели DB/контрактах могут отсутствовать или не совпадать поля. Проверяй фактически сохраняемые колонки и маппинг; не считай request полным отражением entity.
 

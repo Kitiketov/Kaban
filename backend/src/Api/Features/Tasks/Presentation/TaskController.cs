@@ -1,28 +1,48 @@
-﻿using Kaban.Api.Features.Tasks.CreateTask;
-using Kaban.Api.Features.Tasks.DTO;
+﻿using Kaban.Api.Features.Tasks.Application.Common.Dto;
+using Kaban.Api.Features.Tasks.Application.Delete;
+using Kaban.Api.Features.Tasks.Application.Move;
+using Kaban.Api.Features.Tasks.Application.Update;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Kaban.Api.Features.Tasks.Presentation;
 
 [ApiController]
-[Route("api/tasks")]
+[Route("api/tasks/{taskId:int}")]
 public class TaskController(IMediator mediator) : ControllerBase
 {
-    [HttpPost]
-    public async Task<ActionResult<TaskCreateResponseDto>> Create(
-        [FromBody] TaskCreateRequestDto request, CancellationToken ct)
+    [HttpPut]
+    public async Task<ActionResult<TaskResponseDto>> Update([FromBody] TaskRequestDto request, int taskId,
+        CancellationToken ct)
     {
-        var result = await mediator.Send(
-            new CreateTaskCommand(request.Name,
-                request.Description,  
-                request.Priority,     
-                request.Deadline,    
-                request.BoardId,
-                request.UserId,       
-                request.ColumnId,     
-                request.Order,        
+        return await mediator.Send(
+            new UpdateTaskCommand(
+                taskId,
+                request.Name,
+                request.Description,
+                request.Priority,
+                request.Deadline,
+                request.UserId,
+                request.ColumnId,
                 request.TagIds), ct);
-        return CreatedAtAction(nameof(Create), new { id = result.Id }, result);
+    }
+
+    [HttpPatch]
+    public async Task<ActionResult<TaskResponseDto>> Move([FromBody] TaskMoveRequestDto request, int taskId,
+        CancellationToken ct)
+    {
+        return await mediator.Send(
+            new MoveTaskCommand(
+                taskId,
+                request.ColumnId,
+                request.PrevTaskId,
+                request.NextTaskId), ct);
+    }
+
+    [HttpDelete]
+    public async Task<ActionResult> Delete(int taskId, CancellationToken ct)
+    {
+        await mediator.Send(new DeleteTaskCommand(taskId), ct);
+        return Ok();
     }
 }

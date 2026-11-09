@@ -13,8 +13,7 @@ public class RequestFaultExceptionHandler(ILogger<RequestFaultExceptionHandler> 
         if (exception is not RequestFaultException requestFaultException)
             return false;
 
-        logger.LogError("Worker request fault for {Method} {Path}", httpContext.Request.Method,
-            httpContext.Request.Path);
+        logger.LogError("Worker request fault");
 
         var result = Results.BadRequest(new
         {

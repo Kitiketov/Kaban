@@ -13,8 +13,7 @@ public class RequestTimeoutExceptionHandler(ILogger<RequestTimeoutExceptionHandl
         if(exception is not RequestTimeoutException)
             return false;
 
-        logger.LogWarning("Worker request timed out for {Method} {Path}", httpContext.Request.Method,
-            httpContext.Request.Path);
+        logger.LogWarning("Worker request timed out");
         
         var result = Results.Json(
             data: new { message = "Timeout occurred" }, 

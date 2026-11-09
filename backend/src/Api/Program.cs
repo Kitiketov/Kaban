@@ -1,5 +1,3 @@
-using Contracts.Features.Tasks;
-using Contracts.Features.Boards;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using MassTransit;
@@ -48,15 +46,7 @@ builder.Services.AddHealthChecks();
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddMassTransit(x =>
 {
-    x.AddRequestClient<TaskCreateEvent>();
-    x.AddRequestClient<CreateBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<ListBoardsRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<GetBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<RenameBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<AddBoardColumnRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<RenameBoardColumnRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteBoardColumnRequest>(RequestTimeout.After(s: 30));
+    x.AddKabanRequestClients();
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();
