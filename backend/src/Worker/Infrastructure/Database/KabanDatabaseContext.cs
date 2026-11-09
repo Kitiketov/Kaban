@@ -8,6 +8,7 @@ public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options
     public DbSet<Tasks> Tasks => Set<Tasks>();
     public DbSet<BoardColumns> BoardColumns => Set<BoardColumns>();
     public DbSet<Boards> Boards => Set<Boards>();
+    public DbSet<Projects> Projects => Set<Projects>();
     public DbSet<UserTasks> UserTasks => Set<UserTasks>();
     public DbSet<Users> Users => Set<Users>();
     public DbSet<TeamProjects> TeamProjects => Set<TeamProjects>();
