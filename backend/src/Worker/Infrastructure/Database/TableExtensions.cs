@@ -21,22 +21,4 @@ public static class TableExtensions
 
         return new string(buffer[..pos]);
     }
-<<<<<<< HEAD:backend/src/Worker/Infrastructure/Database/TableExtensions.cs
 }
-=======
-}
-
-public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options) : DbContext(options)
-{
-    public DbSet<Projects> Projects => Set<Projects>();
-    public DbSet<Boards> Boards => Set<Boards>();
-    public DbSet<BoardColumns> BoardColumns => Set<BoardColumns>();
-
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-        modelBuilder.HasPostgresEnum<PriorityEnum>("task_priority");
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(KabanDatabaseContext).Assembly);
-    }
-}
->>>>>>> origin/init-api:backend/src/Worker/Infrastructure/Database/Program.cs

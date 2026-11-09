@@ -1,9 +1,6 @@
-<<<<<<< HEAD
 using Kaban.Worker.Features.Tasks.Application;
-=======
-using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Features.Boards;
->>>>>>> origin/init-api
+using Kaban.Worker.Features.Tasks.Presentation;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -17,14 +14,6 @@ builder.Services.AddHealthChecks();
 builder.Logging.ClearProviders();
 builder.Logging.Configure(options =>
     options.ActivityTrackingOptions = ActivityTrackingOptions.TraceId
-<<<<<<< HEAD
-        | ActivityTrackingOptions.SpanId
-        | ActivityTrackingOptions.ParentId);
-builder.Logging.AddConsole(options => options.IncludeScopes = true);
-builder.Services.AddScoped<ITaskService, TaskService>();
-builder.Services.AddDbContext<KabanDatabaseContext>(
-    opt => opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-=======
                                       | ActivityTrackingOptions.SpanId
                                       | ActivityTrackingOptions.ParentId);
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
@@ -51,10 +40,13 @@ builder.Services.AddOpenTelemetry()
         .AddOtlpExporter());
 builder.Services.AddDbContext<KabanDatabaseContext>(opt =>
     opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
->>>>>>> origin/init-api
+builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddMassTransit(x =>
 {
     x.AddConsumer<TaskCreateConsumer>();
+    x.AddConsumer<TaskDeleteConsumer>();
+    x.AddConsumer<TasksMoveConsumer>();
+    x.AddConsumer<TasksUpdateConsumer>();
     x.AddConsumer<CreateBoardConsumer>();
     x.AddConsumer<ListBoardsConsumer>();
     x.AddConsumer<GetBoardConsumer>();
@@ -65,20 +57,8 @@ builder.Services.AddMassTransit(x =>
     x.AddConsumer<DeleteBoardColumnConsumer>();
     x.UsingRabbitMq((context, cfg) =>
     {
-<<<<<<< HEAD
-        x.AddConsumers(typeof(Program).Assembly);     
-        x.UsingRabbitMq((context, cfg) => 
-        { 
-            var configuration = context.GetRequiredService<IConfiguration>();
-            var rabbitConfig = configuration.GetSection("RabbitMq");
-        
-            var host = rabbitConfig["Host"] ?? "localhost";
-            var username = rabbitConfig["Username"] ?? "kaban";
-            var password = rabbitConfig["Password"] ?? "local_dev_password";
-=======
         var configuration = context.GetRequiredService<IConfiguration>();
         var rabbitConfig = configuration.GetSection("RabbitMq");
->>>>>>> origin/init-api
 
         var host = rabbitConfig["Host"] ?? "localhost";
         var username = rabbitConfig["Username"] ?? "kaban";

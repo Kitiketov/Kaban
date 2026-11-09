@@ -13,14 +13,9 @@ public class RequestFaultExceptionHandler(ILogger<RequestFaultExceptionHandler> 
         if (exception is not RequestFaultException requestFaultException)
             return false;
 
-<<<<<<< HEAD
-        var result = Results.InternalServerError(new
-=======
-        logger.LogError("Worker request fault for {Method} {Path}", httpContext.Request.Method,
-            httpContext.Request.Path);
+        logger.LogError("Worker request fault");
 
         var result = Results.BadRequest(new
->>>>>>> origin/init-api
         {
             error = "Request Fault",
             message = requestFaultException.Message

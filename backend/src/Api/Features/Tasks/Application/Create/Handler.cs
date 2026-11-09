@@ -1,4 +1,3 @@
-using Contracts.Features.Tasks;
 using Contracts.Features.Tasks.Common;
 using Contracts.Features.Tasks.Create;
 using Kaban.Api.Common.Exceptions;
