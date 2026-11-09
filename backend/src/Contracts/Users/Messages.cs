@@ -10,5 +10,5 @@ public sealed record UsersFound(UserResult[] Users);
 public sealed record GetCredentialsRequested(string Email);
 public sealed record CredentialsFound(int UserId, string PasswordHash);
 public sealed record RegisterUserRequested(
-    Guid OperationId, string Fingerprint, string Email, string Name, string PasswordHash);
+    string Email, string Name, string PasswordHash);
 public sealed record UserRegistered(int UserId);

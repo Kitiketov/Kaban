@@ -179,7 +179,6 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
     {
         Interlocked.Increment(ref probe.Calls);
         Assert.Equal("new@example.com", context.Message.Email);
-        Assert.NotEqual(Guid.Empty, context.Message.OperationId);
         Assert.Equal("New", context.Message.Name);
         Assert.NotEqual("good-password", context.Message.PasswordHash);
         Assert.True(credentials.Verify("good-password", context.Message.PasswordHash));
@@ -188,4 +187,3 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
         await context.RespondAsync(new UserRegistered(7));
     }
 }
-

@@ -24,7 +24,7 @@ public sealed class ExternalServicesFactAttribute : FactAttribute
 public sealed class WorkerIntegrationTests
 {
     [ExternalServicesFact]
-    public async Task Registration_Commits_Deduplicates_HandlesLateSuccess_AndFaults()
+    public async Task Registration_Commits_RejectsDuplicateEmails_HandlesLateSuccess_AndFaults()
     {
         var database = "kaban_test_" + Guid.NewGuid().ToString("N");
         var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("KABAN_TEST_POSTGRES"));
@@ -68,21 +68,13 @@ public sealed class WorkerIntegrationTests
             try
             {
                 var client = provider.GetRequiredService<IRequestClient<RegisterUserRequested>>();
-                var request = new RegisterUserRequested(Guid.NewGuid(), new string('A', 64),
-                    "user@example.com", "User", "test-hash");
+                var request = new RegisterUserRequested("user@example.com", "User", "test-hash");
                 var duplicates = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
                     client.GetResponse<UserRegistered, UserFailure>(request)));
-                Assert.All(duplicates, r => Assert.True(r.Is(out Response<UserRegistered>? _)));
+                Assert.Equal(1, duplicates.Count(r => r.Is(out Response<UserRegistered>? _)));
+                Assert.Equal(3, duplicates.Count(r => r.Is(out Response<UserFailure>? failure) && failure.Message.Code == "email_conflict"));
                 Assert.Equal(1, await db.Set<UserEntity>().CountAsync());
-                Assert.Equal(1, await db.Set<RegistrationOperation>().CountAsync());
-                var conflict = await client.GetResponse<UserRegistered, UserFailure>(request with { Fingerprint = new string('B', 64) });
-                Assert.True(conflict.Is(out Response<UserFailure>? rejected));
-                Assert.Equal("idempotency_conflict", rejected!.Message.Code);
-                var emailConflict = await client.GetResponse<UserRegistered, UserFailure>(request with { OperationId = Guid.NewGuid() });
-                Assert.True(emailConflict.Is(out Response<UserFailure>? duplicateEmail));
-                Assert.Equal("email_conflict", duplicateEmail!.Message.Code);
-
-                var late = request with { OperationId = Guid.NewGuid(), Email = "late@example.com" };
+                var late = request with { Email = "late@example.com" };
                 await using (var blocker = new NpgsqlConnection(connection.ConnectionString))
                 {
                     await blocker.OpenAsync();
@@ -95,7 +87,8 @@ public sealed class WorkerIntegrationTests
                     await transaction.CommitAsync();
                 }
                 var retry = await client.GetResponse<UserRegistered, UserFailure>(late);
-                Assert.True(retry.Is(out Response<UserRegistered>? _));
+                Assert.True(retry.Is(out Response<UserFailure>? failure));
+                Assert.Equal("email_conflict", failure!.Message.Code);
                 Assert.Equal(1, await db.Set<UserEntity>().CountAsync(x => x.Email == late.Email));
 
                 // Damage only the database created by this test, to exercise a genuine DB fault.
@@ -113,5 +106,3 @@ public sealed class WorkerIntegrationTests
         }
     }
 }
-
-

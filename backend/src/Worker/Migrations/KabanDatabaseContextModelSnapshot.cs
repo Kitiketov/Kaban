@@ -23,30 +23,6 @@ namespace Kaban.Worker.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "task_priority", "priority_enum", new[] { "no_priority", "low", "medium", "high", "very_high" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Kaban.Worker.Features.Users.RegistrationOperation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Fingerprint")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("registration_operations", (string)null);
-                });
-
             modelBuilder.Entity("Kaban.Worker.Infrastructure.Database.Domain.BoardColumns", b =>
                 {
                     b.Property<int>("Id")
@@ -377,15 +353,6 @@ namespace Kaban.Worker.Migrations
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
-                });
-
-            modelBuilder.Entity("Kaban.Worker.Features.Users.RegistrationOperation", b =>
-                {
-                    b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.Users", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("Kaban.Worker.Infrastructure.Database.Domain.BoardColumns", b =>
