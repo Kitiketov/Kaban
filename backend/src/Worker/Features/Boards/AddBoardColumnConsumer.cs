@@ -14,8 +14,8 @@ public sealed class AddBoardColumnConsumer(KabanDatabaseContext db, ILogger<AddB
         var request = context.Message;
         var ct = context.CancellationToken;
 
-        // if (!await db.Boards.AnyAsync(x => x.Id == request.BoardId, ct))
-        //     throw new InvalidOperationException("Board not found.");
+        if (!await db.Boards.AnyAsync(x => x.Id == request.BoardId, ct))
+            throw new InvalidOperationException("Board not found.");
 
         var order = (await db.BoardColumns.Where(x => x.BoardId == request.BoardId)
             .MaxAsync(x => (int?)x.BoardOrder, ct) ?? -1) + 1;

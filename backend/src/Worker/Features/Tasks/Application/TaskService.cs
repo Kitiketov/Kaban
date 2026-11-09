@@ -311,11 +311,10 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
             .AnyAsync(x => x.Id == columnId && x.BoardId == boardId, ct);
 
     // TODO сдедать проверку на каждое из условий и возвращать понятную ошибку на каждую
-    // TODO вернуть проверку, когда появятся проекты
     private async Task<bool> CheckUserExist(int userId, int kanbanId, CancellationToken ct)
         => await dbContext.UserTeams
-           .AnyAsync(ut => ut.UserId == userId, ct);// == userId &&
-            //                 dbContext.Boards.Any(b => b.Id == kanbanId &&
-            //                                           dbContext.TeamProjects.Any(tp =>
-            //                                               tp.ProjectId == b.ProjectId && tp.TeamId == ut.TeamId)), ct);
+            .AnyAsync(ut => ut.UserId == userId &&
+                            dbContext.Boards.Any(b => b.Id == kanbanId &&
+                                                      dbContext.TeamProjects.Any(tp =>
+                                                          tp.ProjectId == b.ProjectId && tp.TeamId == ut.TeamId)), ct);
 }
