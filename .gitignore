@@ -67,3 +67,6 @@ nunit-*.xml
 **/.env
 *.log
 .DS_Store
+
+# Local API development secrets
+/backend/src/Api/appsettings.Development.json
