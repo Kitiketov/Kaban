@@ -1,6 +1,6 @@
+using Contracts.Features.Users;
 using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Users.Application.DTO;
-using Kaban.Contracts.Users;
 using MassTransit;
 using MediatR;
 

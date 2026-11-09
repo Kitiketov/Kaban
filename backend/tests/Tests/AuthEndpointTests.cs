@@ -1,11 +1,10 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using Contracts.Features.Users;
 using Kaban.Api.Features.Auth.Application.DTO;
 using Kaban.Api.Features.Auth.Infrastructure;
 using Kaban.Api.Features.Users.Application.DTO;
-using Kaban.Contracts.Users;
 using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

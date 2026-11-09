@@ -1,7 +1,7 @@
+using System.Threading.RateLimiting;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Auth.Infrastructure;
-using Kaban.Contracts.Users;
 using MassTransit;
 using Microsoft.OpenApi;
 using OpenTelemetry.Logs;

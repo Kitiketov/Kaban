@@ -1,5 +1,5 @@
 using System.Net.Mail;
-using Kaban.Contracts.Users;
+using Contracts.Features.Users;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;

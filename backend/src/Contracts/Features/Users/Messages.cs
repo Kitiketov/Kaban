@@ -1,4 +1,4 @@
-namespace Kaban.Contracts.Users;
+namespace Contracts.Features.Users;
 
 public sealed record UserResult(int Id, string Name, string Email);
 public sealed record UserFailure(string Code);

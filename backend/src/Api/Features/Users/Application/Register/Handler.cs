@@ -1,9 +1,11 @@
+using Contracts.Features.Users;
 using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Auth.Infrastructure;
-using Kaban.Contracts.Users;
 using MassTransit;
 using MediatR;
+
 namespace Kaban.Api.Features.Users.Application.Register;
+
 public sealed class RegisterUserHandler(IRequestClient<RegisterUserRequested> client, CredentialsService credentials)
     : IRequestHandler<RegisterUserCommand>
 {
@@ -17,4 +19,3 @@ public sealed class RegisterUserHandler(IRequestClient<RegisterUserRequested> cl
         if (response.Is(out Response<UserFailure>? failure)) throw new UserOperationException(failure.Message.Code);
     }
 }
-
