@@ -16,14 +16,9 @@ public sealed class BoardsConfiguration : IEntityTypeConfiguration<Boards>
 {
     public void Configure(EntityTypeBuilder<Boards> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(Boards)));
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Boards.Id))).ValueGeneratedOnAdd();
-        builder.Property(x => x.Name)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Boards.Name))).HasMaxLength(64).IsRequired();
-        builder.Property(x => x.ProjectId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Boards.ProjectId)));
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.Name).HasMaxLength(64).IsRequired();
         builder.HasIndex(x => x.ProjectId);
         builder.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
     }
@@ -45,17 +40,9 @@ public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardCo
 {
     public void Configure(EntityTypeBuilder<BoardColumns> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(BoardColumns)));
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.Id))).ValueGeneratedOnAdd();
-        builder.Property(x => x.ColumnName)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.ColumnName))).HasMaxLength(64)
-            .IsRequired();
-        builder.Property(x => x.BoardOrder)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.BoardOrder)));
-        builder.Property(x => x.BoardId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardColumns.BoardId)));
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.ColumnName).HasMaxLength(64).IsRequired();
         builder.HasIndex(x => x.BoardId);
         builder.HasIndex(x => new { x.BoardId, x.BoardOrder }).IsUnique();
         builder.HasOne(x => x.Board).WithMany().HasForeignKey(x => x.BoardId);
@@ -75,12 +62,7 @@ public sealed class BoardTagsConfiguration : IEntityTypeConfiguration<BoardTags>
 {
     public void Configure(EntityTypeBuilder<BoardTags> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(BoardTags)));
         builder.HasKey(x => new { x.TagId, x.BoardId });
-        builder.Property(x => x.TagId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardTags.TagId)));
-        builder.Property(x => x.BoardId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(BoardTags.BoardId)));
         builder.HasIndex(x => x.BoardId);
         builder.HasIndex(x => x.TagId);
         builder.HasOne(x => x.Board).WithMany().HasForeignKey(x => x.BoardId);

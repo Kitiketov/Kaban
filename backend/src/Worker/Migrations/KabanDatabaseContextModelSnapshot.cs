@@ -20,7 +20,6 @@ namespace Kaban.Worker.Migrations
                 .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "task_priority", "priority_enum", new[] { "no_priority", "low", "medium", "high", "very_high" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Kaban.Worker.Infrastructure.Database.Domain.BoardColumns", b =>
@@ -46,12 +45,15 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("column_name");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_board_columns");
 
-                    b.HasIndex("BoardId");
+                    b.HasIndex("BoardId")
+                        .HasDatabaseName("ix_board_columns_board_id");
 
                     b.HasIndex("BoardId", "BoardOrder")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_board_columns_board_id_board_order");
 
                     b.ToTable("board_columns", (string)null);
                 });
@@ -66,11 +68,14 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("board_id");
 
-                    b.HasKey("TagId", "BoardId");
+                    b.HasKey("TagId", "BoardId")
+                        .HasName("pk_board_tags");
 
-                    b.HasIndex("BoardId");
+                    b.HasIndex("BoardId")
+                        .HasDatabaseName("ix_board_tags_board_id");
 
-                    b.HasIndex("TagId");
+                    b.HasIndex("TagId")
+                        .HasDatabaseName("ix_board_tags_tag_id");
 
                     b.ToTable("board_tags", (string)null);
                 });
@@ -94,9 +99,11 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("project_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_boards");
 
-                    b.HasIndex("ProjectId");
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_boards_project_id");
 
                     b.ToTable("boards", (string)null);
                 });
@@ -116,7 +123,8 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("project_name");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_projects");
 
                     b.ToTable("projects", (string)null);
                 });
@@ -140,12 +148,15 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("team_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_roles");
 
-                    b.HasIndex("TeamId");
+                    b.HasIndex("TeamId")
+                        .HasDatabaseName("ix_roles_team_id");
 
                     b.HasIndex("TeamId", "RoleName")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_roles_team_id_role_name");
 
                     b.ToTable("roles", (string)null);
                 });
@@ -169,12 +180,15 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("task_id");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_task_tags");
 
-                    b.HasIndex("TaskId");
+                    b.HasIndex("TaskId")
+                        .HasDatabaseName("ix_task_tags_task_id");
 
                     b.HasIndex("TaskId", "TagName")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_task_tags_task_id_tag");
 
                     b.ToTable("task_tags", (string)null);
                 });
@@ -227,12 +241,15 @@ namespace Kaban.Worker.Migrations
                         .HasColumnName("task_rank")
                         .UseCollation("C");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_tasks");
 
-                    b.HasIndex("BoardColumnId");
+                    b.HasIndex("BoardColumnId")
+                        .HasDatabaseName("ix_tasks_board_column_id");
 
                     b.HasIndex("BoardColumnId", "TaskRank")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_tasks_board_column_id_task_rank");
 
                     b.ToTable("tasks", null, t =>
                         {
@@ -250,11 +267,14 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("team_id");
 
-                    b.HasKey("ProjectId", "TeamId");
+                    b.HasKey("ProjectId", "TeamId")
+                        .HasName("pk_team_projects");
 
-                    b.HasIndex("ProjectId");
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("ix_team_projects_project_id");
 
-                    b.HasIndex("TeamId");
+                    b.HasIndex("TeamId")
+                        .HasDatabaseName("ix_team_projects_team_id");
 
                     b.ToTable("team_projects", (string)null);
                 });
@@ -274,7 +294,8 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("team_name");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_teams");
 
                     b.ToTable("teams", (string)null);
                 });
@@ -289,11 +310,14 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("task_id");
 
-                    b.HasKey("UserId", "TaskId");
+                    b.HasKey("UserId", "TaskId")
+                        .HasName("pk_user_tasks");
 
-                    b.HasIndex("TaskId");
+                    b.HasIndex("TaskId")
+                        .HasDatabaseName("ix_user_tasks_task_id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_user_tasks_user_id");
 
                     b.ToTable("user_tasks", (string)null);
                 });
@@ -312,13 +336,17 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("role_id");
 
-                    b.HasKey("UserId", "TeamId");
+                    b.HasKey("UserId", "TeamId")
+                        .HasName("pk_user_teams");
 
-                    b.HasIndex("RoleId");
+                    b.HasIndex("RoleId")
+                        .HasDatabaseName("ix_user_teams_role_id");
 
-                    b.HasIndex("TeamId");
+                    b.HasIndex("TeamId")
+                        .HasDatabaseName("ix_user_teams_team_id");
 
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_user_teams_user_id");
 
                     b.ToTable("user_teams", (string)null);
                 });
@@ -350,10 +378,12 @@ namespace Kaban.Worker.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("name");
 
-                    b.HasKey("Id");
+                    b.HasKey("Id")
+                        .HasName("pk_users");
 
                     b.HasIndex("Email")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ix_users_email");
 
                     b.ToTable("users", (string)null);
                 });
@@ -364,7 +394,8 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_board_columns_boards_board_id");
 
                     b.Navigation("Board");
                 });
@@ -375,13 +406,15 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("BoardId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_board_tags_boards_board_id");
 
                     b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.TaskTags", "Tag")
                         .WithMany()
                         .HasForeignKey("TagId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_board_tags_task_tags_tag_id");
 
                     b.Navigation("Board");
 
@@ -394,7 +427,8 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_boards_projects_project_id");
 
                     b.Navigation("Project");
                 });
@@ -405,7 +439,8 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_roles_teams_team_id");
 
                     b.Navigation("Team");
                 });
@@ -416,7 +451,8 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_task_tags_tasks_task_id");
 
                     b.Navigation("Task");
                 });
@@ -424,10 +460,11 @@ namespace Kaban.Worker.Migrations
             modelBuilder.Entity("Kaban.Worker.Infrastructure.Database.Domain.Tasks", b =>
                 {
                     b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.BoardColumns", "BoardColumn")
-                        .WithMany()
+                        .WithMany("Tasks")
                         .HasForeignKey("BoardColumnId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_tasks_board_columns_board_column_id");
 
                     b.Navigation("BoardColumn");
                 });
@@ -438,13 +475,15 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_team_projects_projects_project_id");
 
                     b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.Teams", "Team")
                         .WithMany()
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_team_projects_teams_team_id");
 
                     b.Navigation("Project");
 
@@ -457,13 +496,15 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("TaskId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_user_tasks_tasks_task_id");
 
                     b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.Users", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_user_tasks_users_user_id");
 
                     b.Navigation("Task");
 
@@ -476,25 +517,33 @@ namespace Kaban.Worker.Migrations
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_user_teams_roles_role_id");
 
                     b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.Teams", "Team")
                         .WithMany()
                         .HasForeignKey("TeamId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_user_teams_teams_team_id");
 
                     b.HasOne("Kaban.Worker.Infrastructure.Database.Domain.Users", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .IsRequired()
+                        .HasConstraintName("fk_user_teams_users_user_id");
 
                     b.Navigation("Role");
 
                     b.Navigation("Team");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Kaban.Worker.Infrastructure.Database.Domain.BoardColumns", b =>
+                {
+                    b.Navigation("Tasks");
                 });
 #pragma warning restore 612, 618
         }
