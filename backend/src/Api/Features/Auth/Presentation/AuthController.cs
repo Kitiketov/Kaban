@@ -12,6 +12,7 @@ namespace Kaban.Api.Features.Auth.Presentation;
 public sealed record LoginRequest(string Email, string Password);
 
 [ApiController]
+[Tags("Auth")]
 [Route("api/auth")]
 [EnableRateLimiting("auth")]
 public sealed class AuthController(IMediator mediator) : ControllerBase
