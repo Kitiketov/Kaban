@@ -4,13 +4,9 @@
     <RootNamespace>Kaban.Worker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Contracts">
-      <HintPath>..\Api\bin\Debug\net10.0\Contracts.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-  <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
+    <PackageReference Include="LexoRank" Version="1.0.10" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
-
     <PackageReference Include="CodoMetis.ValueRanges.EFCore.PostgreSQL.NodaTime" Version="10.4.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
@@ -25,13 +21,12 @@
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.20.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.20.1" />
     <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.0" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Infrastructure\" />
+    <PackageReference Include="OneOf" Version="3.0.271" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Contracts\Contracts.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Migrations\" />
+  </ItemGroup>
 </Project>
-
-
