@@ -12,6 +12,7 @@ namespace Kaban.Api.Features.Users.Presentation;
 public sealed record RegisterUserRequest(string Email, string Name, string Password);
 
 [ApiController]
+[Tags("Users")]
 [Route("api/users")]
 [Authorize]
 public sealed class UsersController(IMediator mediator) : ControllerBase

@@ -1,17 +1,16 @@
 ﻿using Contracts.Features.Tasks.Common;
 using Contracts.Features.Tasks.Move;
-using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Tasks.Application.Common;
-using Kaban.Api.Features.Tasks.Application.Common.Dto;
+using Kaban.Api.Features.Tasks.Application.DTO;
 using MassTransit;
 using MediatR;
 
 namespace Kaban.Api.Features.Tasks.Application.Move;
 
 public class Handler(IRequestClient<MoveTaskRequest> requestClient)
-    : IRequestHandler<MoveTaskCommand, TaskResponseDto>
+    : IRequestHandler<MoveTaskCommand, TaskDto>
 {
-    public async Task<TaskResponseDto> Handle(MoveTaskCommand request, CancellationToken ct)
+    public async Task<TaskDto> Handle(MoveTaskCommand request, CancellationToken ct)
     {
         var moveTaskRequest =
             new MoveTaskRequest(request.TaskId, request.ColumnId, request.PrevTaskId, request.NextTaskId);
@@ -20,6 +19,6 @@ public class Handler(IRequestClient<MoveTaskRequest> requestClient)
             ITaskFailed>(moveTaskRequest, ct);
 
         var taskData = response.EnsureSuccess();
-        return TaskResponseDto.FromSuccess(taskData);
+        return TaskDto.FromSuccess(taskData);
     }
 }

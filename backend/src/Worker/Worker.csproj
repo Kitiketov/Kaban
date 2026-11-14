@@ -4,6 +4,7 @@
     <RootNamespace>Kaban.Worker</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
     <PackageReference Include="LexoRank" Version="1.0.10" />
     <PackageReference Include="MassTransit.RabbitMQ" Version="8.3.6" />
     <PackageReference Include="CodoMetis.ValueRanges.EFCore.PostgreSQL.NodaTime" Version="10.4.0" />

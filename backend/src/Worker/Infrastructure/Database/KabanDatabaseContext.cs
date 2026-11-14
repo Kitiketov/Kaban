@@ -20,7 +20,6 @@ public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        modelBuilder.HasPostgresEnum<PriorityEnum>("task_priority");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(KabanDatabaseContext).Assembly);
     }
 }

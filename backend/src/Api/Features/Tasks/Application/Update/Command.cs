@@ -1,5 +1,5 @@
-﻿using Kaban.Api.Features.Tasks.Application.Common.Dto;
-using Kaban.Api.Features.Tasks.Application.Common.Validation;
+﻿using Kaban.Api.Features.Tasks.Application.Common.Validation;
+using Kaban.Api.Features.Tasks.Application.DTO;
 using MediatR;
 
 namespace Kaban.Api.Features.Tasks.Application.Update;
@@ -12,4 +12,4 @@ public sealed record UpdateTaskCommand(
     DateTime? Deadline,
     int? UserId,
     int ColumnId,
-    int[]? TagIds) : IRequest<TaskResponseDto>, ITaskPayload;
+    int[]? TagIds) : IRequest<TaskDto>, ITaskPayload;

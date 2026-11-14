@@ -13,12 +13,9 @@ public sealed class TeamsConfiguration : IEntityTypeConfiguration<Teams>
 {
     public void Configure(EntityTypeBuilder<Teams> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(Teams)));
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Teams.Id))).ValueGeneratedOnAdd();
-        builder.Property(x => x.TeamName)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Teams.TeamName))).IsRequired().HasMaxLength(64);
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.TeamName).IsRequired().HasMaxLength(64);
     }
 }
 
@@ -32,12 +29,9 @@ public sealed class ProjectsConfiguration : IEntityTypeConfiguration<Projects>
 {
     public void Configure(EntityTypeBuilder<Projects> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(Projects)));
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Projects.Id))).ValueGeneratedOnAdd();
-        builder.Property(x => x.ProjectName)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Projects.ProjectName))).IsRequired().HasMaxLength(64);
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.ProjectName).IsRequired().HasMaxLength(64);
     }
 }
 
@@ -54,14 +48,9 @@ public sealed class RolesConfiguration : IEntityTypeConfiguration<Roles>
 {
     public void Configure(EntityTypeBuilder<Roles> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(Roles)));
         builder.HasKey(x => x.Id);
-        builder.Property(x => x.Id)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Roles.Id))).ValueGeneratedOnAdd();
-        builder.Property(x => x.RoleName)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Roles.RoleName))).IsRequired().HasMaxLength(64);
-        builder.Property(x => x.TeamId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(Roles.TeamId)));
+        builder.Property(x => x.Id).ValueGeneratedOnAdd();
+        builder.Property(x => x.RoleName).IsRequired().HasMaxLength(64);
         builder.HasIndex(x => x.TeamId);
         builder.HasIndex(x => new { x.TeamId, x.RoleName }).IsUnique();
         builder.HasOne(x => x.Team).WithMany().HasForeignKey(x => x.TeamId);
@@ -81,12 +70,7 @@ public sealed class TeamsProjectsConfiguration : IEntityTypeConfiguration<TeamPr
 {
     public void Configure(EntityTypeBuilder<TeamProjects> builder)
     {
-        builder.ToTable(TableExtensions.GetDatabaseName(nameof(TeamProjects)));
         builder.HasKey(x => new { x.ProjectId, x.TeamId });
-        builder.Property(x => x.ProjectId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(TeamProjects.ProjectId)));
-        builder.Property(x => x.TeamId)
-            .HasColumnName(TableExtensions.GetDatabaseName(nameof(TeamProjects.TeamId)));
         builder.HasIndex(x => x.ProjectId);
         builder.HasIndex(x => x.TeamId);
         builder.HasOne(x => x.Project).WithMany().HasForeignKey(x => x.ProjectId);
