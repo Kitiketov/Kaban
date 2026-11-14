@@ -65,7 +65,7 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
             .HasColumnName(TableExtensions.GetDatabaseName(nameof(Tasks.BoardColumnId)));
         builder.HasIndex(x => x.BoardColumnId);
         builder.HasIndex(x => new { x.BoardColumnId, x.TaskRank }).IsUnique();
-        builder.HasOne(x => x.BoardColumn).WithMany().HasForeignKey(x => x.BoardColumnId);
+        builder.HasOne(x => x.BoardColumn).WithMany(x => x.Tasks).HasForeignKey(x => x.BoardColumnId);
     }
 }
 

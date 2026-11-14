@@ -37,6 +37,8 @@ public class BoardColumns : ITable
 
     public int BoardId { get; set; }
     public Boards? Board { get; set; }
+    
+    public List<Tasks> Tasks { get; set; } = [];  
 }
 
 public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardColumns>

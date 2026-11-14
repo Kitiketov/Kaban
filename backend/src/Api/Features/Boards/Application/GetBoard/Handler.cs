@@ -1,5 +1,6 @@
 using Contracts.Features.Boards;
 using Kaban.Api.Features.Boards.DTO;
+using Kaban.Api.Features.Tasks.Application.Common.Dto;
 using MassTransit;
 using MediatR;
 
@@ -12,6 +13,9 @@ public sealed class GetBoardHandler(IRequestClient<GetBoardRequest> client)
     {
         var response = await client.GetResponse<BoardDetails>(new GetBoardRequest(query.BoardId), ct);
         return new BoardDetailsDto(response.Message.Id, response.Message.ProjectId, response.Message.Name,
-            response.Message.Columns.Select(x => new BoardColumnDto(x.Id, x.Name, x.Order)).ToArray());
+        [
+            .. response.Message.Columns.Select(x => new BoardColumnDetailsDto(x.Id, x.Name, x.Order,
+                [.. x.Tasks.Select(t => TaskResponseDto.FromSuccess(t))]))
+        ]);
     }
 }

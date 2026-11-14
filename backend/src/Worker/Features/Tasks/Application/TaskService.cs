@@ -48,17 +48,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
 
         await tx.CommitAsync(ct);
 
-        return new TaskSuccess
-        {
-            Id = entityTask.Id,
-            Name = entityTask.Name,
-            Description = entityTask.Description,
-            Priority = (int)entityTask.Priority,
-            Deadline = entityTask.Deadline,
-            Rank = entityTask.TaskRank,
-            ColumnId = entityTask.BoardColumnId,
-            UserId = request.UserId
-        };
+        return ToTaskSuccess(entityTask, request.UserId);
     }
 
     public async Task<OneOf<DeleteTaskSuccess, TaskNotFound>> Delete(DeleteTaskRequest request, CancellationToken ct)
@@ -121,6 +111,11 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
 
         dbContext.Update(task);
         await dbContext.SaveChangesAsync(ct);
+        return ToTaskSuccess(task);
+    }
+
+    public static TaskSuccess ToTaskSuccess(Infrastructure.Database.Domain.Tasks task, int? userId = null)
+    {
         return new TaskSuccess
         {
             Id = task.Id,
@@ -129,7 +124,8 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
             Priority = (int)task.Priority,
             Deadline = task.Deadline,
             Rank = task.TaskRank,
-            ColumnId = task.BoardColumnId
+            ColumnId = task.BoardColumnId,
+            UserId = userId
         };
     }
 
