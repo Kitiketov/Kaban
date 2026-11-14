@@ -1,8 +1,8 @@
-﻿using Contracts.Features.Tasks.Common;
+using Contracts.Features.Tasks.Common;
 
-namespace Kaban.Api.Features.Tasks.Application.Common.Dto;
+namespace Kaban.Api.Features.Tasks.Application.DTO;
 
-public sealed record TaskResponseDto(
+public sealed record TaskDto(
     int Id,
     string Name,
     string? Description,
@@ -15,19 +15,19 @@ public sealed record TaskResponseDto(
     int[]? TagIds
 )
 {
-    public static TaskResponseDto FromSuccess(
+    public static TaskDto FromSuccess(
         TaskSuccess taskSuccess,
-        int? kabanId = null,
+        int? kanbanId = null,
         int? userId = null,
         int[]? tagIds = null)
     {
-        return new TaskResponseDto(
+        return new TaskDto(
             taskSuccess.Id,
             taskSuccess.Name,
             taskSuccess.Description,
             taskSuccess.Priority,
             taskSuccess.Deadline,
-            kabanId,
+            kanbanId,
             userId,
             taskSuccess.Rank,
             taskSuccess.ColumnId,

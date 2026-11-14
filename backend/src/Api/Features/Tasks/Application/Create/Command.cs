@@ -1,5 +1,5 @@
-using Kaban.Api.Features.Tasks.Application.Common.Dto;
 using Kaban.Api.Features.Tasks.Application.Common.Validation;
+using Kaban.Api.Features.Tasks.Application.DTO;
 using MediatR;
 
 namespace Kaban.Api.Features.Tasks.Application.Create;
@@ -13,4 +13,4 @@ public sealed record CreateTaskCommand(
     int? UserId,
     int ColumnId,
     int[]? TagIds)
-    : IRequest<TaskResponseDto>, ITaskPayload;
+    : IRequest<TaskDto>, ITaskPayload;

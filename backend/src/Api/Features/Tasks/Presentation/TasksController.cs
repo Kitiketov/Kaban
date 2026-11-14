@@ -1,6 +1,6 @@
-using Kaban.Api.Features.Tasks.Application.Common.Dto;
 using Kaban.Api.Features.Tasks.Application.Create;
 using Kaban.Api.Features.Tasks.Application.Delete;
+using Kaban.Api.Features.Tasks.Application.DTO;
 using Kaban.Api.Features.Tasks.Application.Move;
 using Kaban.Api.Features.Tasks.Application.Update;
 using MediatR;
@@ -8,16 +8,39 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Kaban.Api.Features.Tasks.Presentation;
 
+public sealed record CreateTaskRequest(
+    string Name,
+    string? Description,
+    int Priority,
+    DateTime? Deadline,
+    int? UserId,
+    int ColumnId,
+    int[]? TagIds);
+
+public sealed record UpdateTaskRequest(
+    string Name,
+    string? Description,
+    int Priority,
+    DateTime? Deadline,
+    int? UserId,
+    int ColumnId,
+    int[]? TagIds);
+
+public sealed record MoveTaskRequest(
+    int ColumnId,
+    int? PrevTaskId,
+    int? NextTaskId);
+
 [ApiController]
 [Tags("Tasks")]
 [Route("api")]
 public sealed class TasksController(IMediator mediator) : ControllerBase
 {
     [HttpPost("kanbans/{kanbanId:int}/tasks")]
-    [ProducesResponseType(typeof(TaskResponseDto), StatusCodes.Status201Created)]
-    public async Task<ActionResult<TaskResponseDto>> Create(
+    [ProducesResponseType(typeof(TaskDto), StatusCodes.Status201Created)]
+    public async Task<ActionResult<TaskDto>> Create(
         int kanbanId,
-        [FromBody] TaskRequestDto request,
+        [FromBody] CreateTaskRequest request,
         CancellationToken ct)
     {
         var result = await mediator.Send(
@@ -35,9 +58,9 @@ public sealed class TasksController(IMediator mediator) : ControllerBase
     }
 
     [HttpPut("tasks/{taskId:int}")]
-    public async Task<ActionResult<TaskResponseDto>> Update(
+    public async Task<ActionResult<TaskDto>> Update(
         int taskId,
-        [FromBody] TaskRequestDto request,
+        [FromBody] UpdateTaskRequest request,
         CancellationToken ct)
     {
         return await mediator.Send(
@@ -53,9 +76,9 @@ public sealed class TasksController(IMediator mediator) : ControllerBase
     }
 
     [HttpPatch("tasks/{taskId:int}")]
-    public async Task<ActionResult<TaskResponseDto>> Move(
+    public async Task<ActionResult<TaskDto>> Move(
         int taskId,
-        [FromBody] TaskMoveRequestDto request,
+        [FromBody] MoveTaskRequest request,
         CancellationToken ct)
     {
         return await mediator.Send(

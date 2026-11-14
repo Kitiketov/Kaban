@@ -1,18 +1,16 @@
-using Contracts.Features.Tasks;
 using Contracts.Features.Tasks.Common;
 using Contracts.Features.Tasks.Create;
-using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Tasks.Application.Common;
-using Kaban.Api.Features.Tasks.Application.Common.Dto;
+using Kaban.Api.Features.Tasks.Application.DTO;
 using MassTransit;
 using MediatR;
 
 namespace Kaban.Api.Features.Tasks.Application.Create;
 
 public sealed class CreateTaskHandler(IRequestClient<CreateTaskRequest> requestClient)
-    : IRequestHandler<CreateTaskCommand, TaskResponseDto>
+    : IRequestHandler<CreateTaskCommand, TaskDto>
 {
-    public async Task<TaskResponseDto> Handle(CreateTaskCommand command, CancellationToken ct)
+    public async Task<TaskDto> Handle(CreateTaskCommand command, CancellationToken ct)
     {
         var createTaskEvent = new CreateTaskRequest(
             command.Name,
@@ -29,6 +27,6 @@ public sealed class CreateTaskHandler(IRequestClient<CreateTaskRequest> requestC
             TaskSuccess,
             ITaskFailed>(createTaskEvent, ct);
 
-        return TaskResponseDto.FromSuccess(response.EnsureSuccess(), command.KanbanId, command.UserId);
+        return TaskDto.FromSuccess(response.EnsureSuccess(), command.KanbanId, command.UserId);
     }
 }
