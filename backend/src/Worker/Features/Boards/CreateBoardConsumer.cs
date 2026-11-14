@@ -15,10 +15,7 @@ public sealed class CreateBoardConsumer(KabanDatabaseContext db, ILogger<CreateB
         var request = context.Message;
         var ct = context.CancellationToken;
         if (!await db.Projects.AnyAsync(x => x.Id == request.ProjectId, ct))
-        {
-            await db.Projects.AddAsync(new Projects {Id = request.ProjectId, ProjectName = "WW"}, ct);
-            //throw new InvalidOperationException("Project not found.");
-        }
+            throw new InvalidOperationException("Project not found.");
 
         var board = new BoardEntity { ProjectId = request.ProjectId, Name = request.Name };
         db.Add(board);

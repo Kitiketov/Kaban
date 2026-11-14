@@ -13,6 +13,8 @@ public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options
     public DbSet<Users> Users => Set<Users>();
     public DbSet<TeamProjects> TeamProjects => Set<TeamProjects>();
     public DbSet<UserTeams> UserTeams => Set<UserTeams>();
+    public DbSet<Teams> Teams => Set<Teams>();
+    public DbSet<Roles> Roles => Set<Roles>();
     public DbSet<TaskTags> TaskTags => Set<TaskTags>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
