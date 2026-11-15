@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kaban.Worker.Migrations
 {
     [DbContext(typeof(KabanDatabaseContext))]
-    [Migration("20261114120140_FixTablesNamingConfiguration")]
-    partial class FixTablesNamingConfiguration
+    [Migration("20261115103244_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

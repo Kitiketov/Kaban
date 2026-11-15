@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
-using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace Kaban.Worker.Infrastructure.Database;
 
@@ -12,8 +11,7 @@ public class KabanContextFactory : IDesignTimeDbContextFactory<KabanDatabaseCont
         var optionsBuilder = new DbContextOptionsBuilder<KabanDatabaseContext>();
         optionsBuilder
             .UseNpgsql(connectionString)
-            .UseSnakeCaseNamingConvention()
-            .ReplaceService<IHistoryRepository, KabanHistoryRepository>();
+            .UseSnakeCaseNamingConvention();
         return new KabanDatabaseContext(optionsBuilder.Options);
     }
 }

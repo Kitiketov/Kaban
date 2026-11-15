@@ -7,14 +7,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Kaban.Worker.Migrations
 {
     /// <inheritdoc />
-    public partial class Initail : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterDatabase()
-                .Annotation("Npgsql:Enum:task_priority.priority_enum", "no_priority,low,medium,high,very_high");
-
             migrationBuilder.CreateTable(
                 name: "projects",
                 columns: table => new
@@ -25,7 +22,7 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_projects", x => x.id);
+                    table.PrimaryKey("pk_projects", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -38,7 +35,7 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_teams", x => x.id);
+                    table.PrimaryKey("pk_teams", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -53,7 +50,7 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_users", x => x.id);
+                    table.PrimaryKey("pk_users", x => x.id);
                 });
 
             migrationBuilder.CreateTable(
@@ -67,9 +64,9 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_boards", x => x.id);
+                    table.PrimaryKey("pk_boards", x => x.id);
                     table.ForeignKey(
-                        name: "FK_boards_projects_project_id",
+                        name: "fk_boards_projects_project_id",
                         column: x => x.project_id,
                         principalTable: "projects",
                         principalColumn: "id",
@@ -87,9 +84,9 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_roles", x => x.id);
+                    table.PrimaryKey("pk_roles", x => x.id);
                     table.ForeignKey(
-                        name: "FK_roles_teams_team_id",
+                        name: "fk_roles_teams_team_id",
                         column: x => x.team_id,
                         principalTable: "teams",
                         principalColumn: "id",
@@ -105,15 +102,15 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_team_projects", x => new { x.project_id, x.team_id });
+                    table.PrimaryKey("pk_team_projects", x => new { x.project_id, x.team_id });
                     table.ForeignKey(
-                        name: "FK_team_projects_projects_project_id",
+                        name: "fk_team_projects_projects_project_id",
                         column: x => x.project_id,
                         principalTable: "projects",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_team_projects_teams_team_id",
+                        name: "fk_team_projects_teams_team_id",
                         column: x => x.team_id,
                         principalTable: "teams",
                         principalColumn: "id",
@@ -132,9 +129,9 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_board_columns", x => x.id);
+                    table.PrimaryKey("pk_board_columns", x => x.id);
                     table.ForeignKey(
-                        name: "FK_board_columns_boards_board_id",
+                        name: "fk_board_columns_boards_board_id",
                         column: x => x.board_id,
                         principalTable: "boards",
                         principalColumn: "id",
@@ -151,21 +148,21 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_user_teams", x => new { x.user_id, x.team_id });
+                    table.PrimaryKey("pk_user_teams", x => new { x.user_id, x.team_id });
                     table.ForeignKey(
-                        name: "FK_user_teams_roles_role_id",
+                        name: "fk_user_teams_roles_role_id",
                         column: x => x.role_id,
                         principalTable: "roles",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_user_teams_teams_team_id",
+                        name: "fk_user_teams_teams_team_id",
                         column: x => x.team_id,
                         principalTable: "teams",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_user_teams_users_user_id",
+                        name: "fk_user_teams_users_user_id",
                         column: x => x.user_id,
                         principalTable: "users",
                         principalColumn: "id",
@@ -188,10 +185,10 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_tasks", x => x.id);
+                    table.PrimaryKey("pk_tasks", x => x.id);
                     table.CheckConstraint("ck_tasks_priority", "\"priority\" IN ('NoPriority', 'Low', 'Medium', 'High', 'VeryHigh')");
                     table.ForeignKey(
-                        name: "FK_tasks_board_columns_board_column_id",
+                        name: "fk_tasks_board_columns_board_column_id",
                         column: x => x.board_column_id,
                         principalTable: "board_columns",
                         principalColumn: "id",
@@ -209,9 +206,9 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_task_tags", x => x.id);
+                    table.PrimaryKey("pk_task_tags", x => x.id);
                     table.ForeignKey(
-                        name: "FK_task_tags_tasks_task_id",
+                        name: "fk_task_tags_tasks_task_id",
                         column: x => x.task_id,
                         principalTable: "tasks",
                         principalColumn: "id",
@@ -227,15 +224,15 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_user_tasks", x => new { x.user_id, x.task_id });
+                    table.PrimaryKey("pk_user_tasks", x => new { x.user_id, x.task_id });
                     table.ForeignKey(
-                        name: "FK_user_tasks_tasks_task_id",
+                        name: "fk_user_tasks_tasks_task_id",
                         column: x => x.task_id,
                         principalTable: "tasks",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_user_tasks_users_user_id",
+                        name: "fk_user_tasks_users_user_id",
                         column: x => x.user_id,
                         principalTable: "users",
                         principalColumn: "id",
@@ -251,15 +248,15 @@ namespace Kaban.Worker.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_board_tags", x => new { x.tag_id, x.board_id });
+                    table.PrimaryKey("pk_board_tags", x => new { x.tag_id, x.board_id });
                     table.ForeignKey(
-                        name: "FK_board_tags_boards_board_id",
+                        name: "fk_board_tags_boards_board_id",
                         column: x => x.board_id,
                         principalTable: "boards",
                         principalColumn: "id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_board_tags_task_tags_tag_id",
+                        name: "fk_board_tags_task_tags_tag_id",
                         column: x => x.tag_id,
                         principalTable: "task_tags",
                         principalColumn: "id",
@@ -267,101 +264,101 @@ namespace Kaban.Worker.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_board_columns_board_id",
+                name: "ix_board_columns_board_id",
                 table: "board_columns",
                 column: "board_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_board_columns_board_id_board_order",
+                name: "ix_board_columns_board_id_board_order",
                 table: "board_columns",
                 columns: new[] { "board_id", "board_order" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_board_tags_board_id",
+                name: "ix_board_tags_board_id",
                 table: "board_tags",
                 column: "board_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_board_tags_tag_id",
+                name: "ix_board_tags_tag_id",
                 table: "board_tags",
                 column: "tag_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_boards_project_id",
+                name: "ix_boards_project_id",
                 table: "boards",
                 column: "project_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_roles_team_id",
+                name: "ix_roles_team_id",
                 table: "roles",
                 column: "team_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_roles_team_id_role_name",
+                name: "ix_roles_team_id_role_name",
                 table: "roles",
                 columns: new[] { "team_id", "role_name" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_task_tags_task_id",
+                name: "ix_task_tags_task_id",
                 table: "task_tags",
                 column: "task_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_task_tags_task_id_tag",
+                name: "ix_task_tags_task_id_tag",
                 table: "task_tags",
                 columns: new[] { "task_id", "tag" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_tasks_board_column_id",
+                name: "ix_tasks_board_column_id",
                 table: "tasks",
                 column: "board_column_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_tasks_board_column_id_task_rank",
+                name: "ix_tasks_board_column_id_task_rank",
                 table: "tasks",
                 columns: new[] { "board_column_id", "task_rank" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_team_projects_project_id",
+                name: "ix_team_projects_project_id",
                 table: "team_projects",
                 column: "project_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_team_projects_team_id",
+                name: "ix_team_projects_team_id",
                 table: "team_projects",
                 column: "team_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_user_tasks_task_id",
+                name: "ix_user_tasks_task_id",
                 table: "user_tasks",
                 column: "task_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_user_tasks_user_id",
+                name: "ix_user_tasks_user_id",
                 table: "user_tasks",
                 column: "user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_user_teams_role_id",
+                name: "ix_user_teams_role_id",
                 table: "user_teams",
                 column: "role_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_user_teams_team_id",
+                name: "ix_user_teams_team_id",
                 table: "user_teams",
                 column: "team_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_user_teams_user_id",
+                name: "ix_user_teams_user_id",
                 table: "user_teams",
                 column: "user_id");
 
             migrationBuilder.CreateIndex(
-                name: "IX_users_email",
+                name: "ix_users_email",
                 table: "users",
                 column: "email",
                 unique: true);
