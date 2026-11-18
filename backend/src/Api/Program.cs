@@ -1,8 +1,9 @@
-using Contracts.Features.Tasks;
-using Contracts.Features.Boards;
+using System.Threading.RateLimiting;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
+using Kaban.Api.Features.Auth.Infrastructure;
 using MassTransit;
+using Microsoft.OpenApi;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
@@ -40,23 +41,41 @@ builder.Services.AddOpenTelemetry()
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Description =
+            "Paste the accessToken without the Bearer prefix. For POST /api/auth/tokens/refresh, use the refreshToken instead."
+    });
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
+    });
+    options.OperationFilter<BearerSecurityOperationFilter>();
+});
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<MessagingExceptionHandler>();
 builder.Services.AddCustomExceptionHandlers();
+builder.Services.AddKabanAuth(builder.Configuration);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+        }));
+});
 builder.Services.AddHealthChecks();
 
 builder.Services.AddApplication(); // MediatR + FluentValidation pipeline
 builder.Services.AddMassTransit(x =>
 {
-    x.AddRequestClient<TaskCreateEvent>();
-    x.AddRequestClient<CreateBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<ListBoardsRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<GetBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<RenameBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteBoardRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<AddBoardColumnRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<RenameBoardColumnRequest>(RequestTimeout.After(s: 30));
-    x.AddRequestClient<DeleteBoardColumnRequest>(RequestTimeout.After(s: 30));
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();
@@ -79,6 +98,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseExceptionHandler();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapHealthChecks("/health/live");
 app.MapHealthChecks("/health/ready");
