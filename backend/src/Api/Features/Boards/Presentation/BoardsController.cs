@@ -3,11 +3,14 @@ using Kaban.Api.Features.Boards.Application.DeleteBoard;
 using Kaban.Api.Features.Boards.Application.GetBoard;
 using Kaban.Api.Features.Boards.Application.ListBoards;
 using Kaban.Api.Features.Boards.Application.RenameBoard;
-using Kaban.Api.Features.Boards.DTO;
+using Kaban.Api.Features.Boards.Application.DTO;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Kaban.Api.Features.Boards.Presentation;
+
+public sealed record CreateBoardRequest(string Name);
+public sealed record RenameBoardRequest(string Name);
 
 [ApiController]
 [Tags("Boards")]
@@ -15,7 +18,7 @@ namespace Kaban.Api.Features.Boards.Presentation;
 public sealed class BoardsController(IMediator mediator) : ControllerBase
 {
     [HttpPost("projects/{projectId:int}/kanbans")]
-    public Task<BoardDto> Create(int projectId, CreateBoardDto request, CancellationToken ct) =>
+    public Task<BoardDto> Create(int projectId, CreateBoardRequest request, CancellationToken ct) =>
         mediator.Send(new CreateBoardCommand(projectId, request.Name), ct);
 
     [HttpGet("projects/{projectId:int}/kanbans")]
@@ -27,7 +30,7 @@ public sealed class BoardsController(IMediator mediator) : ControllerBase
         mediator.Send(new GetBoardQuery(kanbanId), ct);
 
     [HttpPut("kanbans/{kanbanId:int}")]
-    public Task<BoardDto> Rename(int kanbanId, RenameBoardDto request, CancellationToken ct) =>
+    public Task<BoardDto> Rename(int kanbanId, RenameBoardRequest request, CancellationToken ct) =>
         mediator.Send(new RenameBoardCommand(kanbanId, request.Name), ct);
 
     [HttpDelete("kanbans/{kanbanId:int}")]

@@ -1,5 +1,5 @@
 using Contracts.Features.Boards;
-using Kaban.Api.Features.Boards.DTO;
+using Kaban.Api.Features.Boards.Application.DTO;
 using Kaban.Api.Features.Tasks.Application.DTO;
 using MassTransit;
 using MediatR;
