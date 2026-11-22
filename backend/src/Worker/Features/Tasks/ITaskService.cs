@@ -5,7 +5,7 @@ using Contracts.Features.Tasks.Move;
 using Contracts.Features.Tasks.Update;
 using OneOf;
 
-namespace Kaban.Worker.Features.Tasks.Application;
+namespace Kaban.Worker.Features.Tasks;
 
 public interface ITaskService
 {

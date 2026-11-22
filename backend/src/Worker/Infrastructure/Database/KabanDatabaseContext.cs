@@ -1,4 +1,8 @@
-﻿using Kaban.Worker.Infrastructure.Database.Domain;
+﻿using Kaban.Worker.Features.Boards.Domain;
+using Kaban.Worker.Features.Projects.Domain;
+using Kaban.Worker.Features.Tasks.Domain;
+using Kaban.Worker.Features.Teams.Domain;
+using Kaban.Worker.Features.Users.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kaban.Worker.Infrastructure.Database;

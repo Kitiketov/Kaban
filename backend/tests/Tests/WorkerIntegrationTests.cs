@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
-using UserEntity = Kaban.Worker.Infrastructure.Database.Domain.Users;
+using UserEntity = Kaban.Worker.Features.Users.Domain.Users;
 
 namespace Kaban.Tests;
 

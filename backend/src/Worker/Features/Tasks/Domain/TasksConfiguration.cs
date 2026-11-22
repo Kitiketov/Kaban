@@ -1,31 +1,7 @@
-﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Infrastructure.Database.Domain;
-
-public enum PriorityEnum
-{
-    [Display(Name = "No Priority")] NoPriority,
-    [Display(Name = "Low")] Low,
-    [Display(Name = "Medium")] Medium,
-    [Display(Name = "High")] High,
-    [Display(Name = "Very high")] VeryHigh
-}
-
-public class Tasks
-{
-    public int Id { get; set; }
-    public required string Name { get; set; }
-    public string? Description { get; set; }
-    public PriorityEnum Priority { get; set; } = PriorityEnum.NoPriority;
-    public DateTime Created { get; set; }
-    public DateTime? Deadline { get; set; }
-    public required string TaskRank { get; set; }
-
-    public int BoardColumnId { get; set; }
-    public BoardColumns? BoardColumn { get; set; }
-}
+namespace Kaban.Worker.Features.Tasks.Domain;
 
 public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
 {
@@ -57,15 +33,6 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
     }
 }
 
-public class TaskTags
-{
-    public int Id { get; set; }
-    public required string TagName { get; set; }
-
-    public int TaskId { get; set; }
-    public Tasks? Task { get; set; }
-}
-
 public sealed class TaskTagsConfiguration : IEntityTypeConfiguration<TaskTags>
 {
     public void Configure(EntityTypeBuilder<TaskTags> builder)
@@ -78,15 +45,6 @@ public sealed class TaskTagsConfiguration : IEntityTypeConfiguration<TaskTags>
         builder.HasIndex(x => new { x.TaskId, x.TagName }).IsUnique();
         builder.HasOne(x => x.Task).WithMany().HasForeignKey(x => x.TaskId);
     }
-}
-
-public class UserTasks
-{
-    public int UserId { get; set; }
-    public Users? User { get; set; }
-
-    public int TaskId { get; set; }
-    public Tasks? Task { get; set; }
 }
 
 public sealed class UserTasksConfiguration : IEntityTypeConfiguration<UserTasks>

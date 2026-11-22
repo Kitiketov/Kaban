@@ -1,4 +1,4 @@
-using Kaban.Worker.Features.Tasks.Application;
+using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Features.Teams;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;

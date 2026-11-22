@@ -1,9 +1,7 @@
 using Contracts.Features.Boards;
 using Kaban.Worker.Infrastructure.Database;
-using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using BoardEntity = Kaban.Worker.Infrastructure.Database.Domain.Boards;
 
 namespace Kaban.Worker.Features.Boards;
 
@@ -17,7 +15,7 @@ public sealed class CreateBoardConsumer(KabanDatabaseContext db, ILogger<CreateB
         if (!await db.Projects.AnyAsync(x => x.Id == request.ProjectId, ct))
             throw new InvalidOperationException("Project not found.");
 
-        var board = new BoardEntity { ProjectId = request.ProjectId, Name = request.Name };
+        var board = new Domain.Boards { ProjectId = request.ProjectId, Name = request.Name };
         db.Add(board);
         await db.SaveChangesAsync(ct);
         await context.RespondAsync(new BoardCreated(board.Id, board.ProjectId, board.Name));

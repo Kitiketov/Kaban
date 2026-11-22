@@ -1,16 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Infrastructure.Database.Domain;
-
-public class Boards
-{
-    public int Id { get; set; }
-    public required string Name { get; set; }
-
-    public int ProjectId { get; set; }
-    public Projects? Project { get; set; }
-}
+namespace Kaban.Worker.Features.Boards.Domain;
 
 public sealed class BoardsConfiguration : IEntityTypeConfiguration<Boards>
 {
@@ -24,18 +15,6 @@ public sealed class BoardsConfiguration : IEntityTypeConfiguration<Boards>
     }
 }
 
-public class BoardColumns
-{
-    public int Id { get; set; }
-    public required string ColumnName { get; set; }
-    public int BoardOrder { get; set; }
-
-    public int BoardId { get; set; }
-    public Boards? Board { get; set; }
-    
-    public List<Tasks> Tasks { get; set; } = [];  
-}
-
 public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardColumns>
 {
     public void Configure(EntityTypeBuilder<BoardColumns> builder)
@@ -47,15 +26,6 @@ public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardCo
         builder.HasIndex(x => new { x.BoardId, x.BoardOrder }).IsUnique();
         builder.HasOne(x => x.Board).WithMany().HasForeignKey(x => x.BoardId);
     }
-}
-
-public class BoardTags
-{
-    public int TagId { get; set; }
-    public TaskTags? Tag { get; set; }
-
-    public int BoardId { get; set; }
-    public Boards? Board { get; set; }
 }
 
 public sealed class BoardTagsConfiguration : IEntityTypeConfiguration<BoardTags>

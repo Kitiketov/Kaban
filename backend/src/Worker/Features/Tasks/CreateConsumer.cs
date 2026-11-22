@@ -1,10 +1,7 @@
-﻿using System.Diagnostics;
-using Contracts.Features.Tasks.Common;
-using Contracts.Features.Tasks.Create;
-using Kaban.Worker.Features.Tasks.Application;
+﻿using Contracts.Features.Tasks.Create;
 using MassTransit;
 
-namespace Kaban.Worker.Features.Tasks.Presentation;
+namespace Kaban.Worker.Features.Tasks;
 
 public class TaskCreateConsumer(
     ITaskService taskService,

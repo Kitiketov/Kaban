@@ -1,6 +1,6 @@
 using Contracts.Features.Boards;
 using Kaban.Worker.Infrastructure.Database;
-using Kaban.Worker.Infrastructure.Database.Domain;
+using Kaban.Worker.Features.Boards.Domain;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,8 +1,7 @@
 ﻿using Contracts.Features.Tasks.Update;
-using Kaban.Worker.Features.Tasks.Application;
 using MassTransit;
 
-namespace Kaban.Worker.Features.Tasks.Presentation;
+namespace Kaban.Worker.Features.Tasks;
 
 public class TasksUpdateConsumer(
     ITaskService taskService,

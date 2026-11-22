@@ -1,15 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Kaban.Worker.Features.Teams.Domain;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Infrastructure.Database.Domain;
-
-public class Users
-{
-    public int Id { get; set; }
-    public required string Name { get; set; }
-    public required string Email { get; set; }
-    public required string HashedPassword { get; set; }
-}
+namespace Kaban.Worker.Features.Users.Domain;
 
 public sealed class UsersConfiguration : IEntityTypeConfiguration<Users>
 {
@@ -23,16 +16,6 @@ public sealed class UsersConfiguration : IEntityTypeConfiguration<Users>
         builder.Property(x => x.HashedPassword)
             .HasColumnName("hash_password").HasMaxLength(255).IsRequired();
     }
-}
-
-public class UserTeams
-{
-    public int UserId { get; set; }
-    public Users? User { get; set; }
-    public int TeamId { get; set; }
-    public Teams? Team { get; set; }
-    public int RoleId { get; set; }
-    public Roles? Role { get; set; }
 }
 
 public sealed class UsersTeamsConfiguration : IEntityTypeConfiguration<UserTeams>

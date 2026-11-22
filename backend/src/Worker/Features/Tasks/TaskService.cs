@@ -4,12 +4,14 @@ using Contracts.Features.Tasks.Delete;
 using Contracts.Features.Tasks.Move;
 using Contracts.Features.Tasks.Update;
 using Kaban.Worker.Infrastructure.Database;
-using Kaban.Worker.Infrastructure.Database.Domain;
+using Kaban.Worker.Features.Boards.Domain;
+using Kaban.Worker.Features.Tasks.Domain;
+using TaskEntity = Kaban.Worker.Features.Tasks.Domain.Tasks;
 using LexoAlgorithm;
 using Microsoft.EntityFrameworkCore;
 using OneOf;
 
-namespace Kaban.Worker.Features.Tasks.Application;
+namespace Kaban.Worker.Features.Tasks;
 
 public class TaskService(KabanDatabaseContext dbContext) : ITaskService
 {
@@ -30,8 +32,8 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
             );
         }
 
-        await dbContext.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock({request.ColumnId})", ct);
+        await dbContext.Database.AcquireResourceLockAsync(
+            LockResource.BoardColumn, request.ColumnId, ct);
 
         var entityTask = await CreateTask(request, ct);
 
@@ -82,8 +84,8 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
                 return new TaskColumnNotFound(kanbanIdIfFailed.Value, request.ColumnId);
         }
 
-        Infrastructure.Database.Domain.Tasks? prevTask = null;
-        Infrastructure.Database.Domain.Tasks? nextTask = null;
+        TaskEntity? prevTask = null;
+        TaskEntity? nextTask = null;
 
         if (request.PrevTaskId is not null)
         {
@@ -114,7 +116,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
         return ToTaskSuccess(task);
     }
 
-    public static TaskSuccess ToTaskSuccess(Infrastructure.Database.Domain.Tasks task, int? userId = null)
+    public static TaskSuccess ToTaskSuccess(TaskEntity task, int? userId = null)
     {
         return new TaskSuccess
         {
@@ -176,7 +178,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
         };
     }
 
-    private static void UpdateRank(Infrastructure.Database.Domain.Tasks task, string? prevTaskTaskRank,
+    private static void UpdateRank(TaskEntity task, string? prevTaskTaskRank,
         string? nextTaskTaskRank)
     {
         if (prevTaskTaskRank is null && nextTaskTaskRank is null)
@@ -201,7 +203,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
     }
 
 
-    private async Task<int?> TryColumnChange(Infrastructure.Database.Domain.Tasks task, int newColumnId,
+    private async Task<int?> TryColumnChange(TaskEntity task, int newColumnId,
         CancellationToken ct)
     {
         var boardId = await GetBoardIdByColumn(task.BoardColumnId, ct);
@@ -221,7 +223,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
     }
 
     private async Task<bool> TryPinTaskToUser(int? userId, int kanbanId,
-        Infrastructure.Database.Domain.Tasks entityTask, CancellationToken ct)
+        TaskEntity entityTask, CancellationToken ct)
     {
         if (userId is null) return true;
         var currentUser = await dbContext.UserTasks.FindAsync(entityTask.Id, userId, ct);
@@ -240,7 +242,7 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
     }
 
     private async Task<bool> TrySyncUserTask(int? userId, int kanbanId,
-        Infrastructure.Database.Domain.Tasks task, CancellationToken ct)
+        TaskEntity task, CancellationToken ct)
     {
         if (userId.HasValue)
         {
@@ -272,10 +274,10 @@ public class TaskService(KabanDatabaseContext dbContext) : ITaskService
         return true;
     }
 
-    private async Task<Infrastructure.Database.Domain.Tasks> CreateTask(CreateTaskRequest message, CancellationToken ct)
+    private async Task<TaskEntity> CreateTask(CreateTaskRequest message, CancellationToken ct)
     {
         var rank = await FindNextColumnRank(message.ColumnId, ct);
-        var entityTask = new Infrastructure.Database.Domain.Tasks
+        var entityTask = new TaskEntity
         {
             Name = message.Name,
             Created = DateTime.UtcNow,

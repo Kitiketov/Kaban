@@ -1,5 +1,5 @@
 using Contracts.Features.Boards;
-using Kaban.Worker.Features.Tasks.Application;
+using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;

@@ -1,10 +1,9 @@
 using Contracts.Features.Teams.Common;
 using Contracts.Features.Teams.CreateRole;
+using Kaban.Worker.Features.Teams.Domain;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using RoleEntity = Kaban.Worker.Infrastructure.Database.Domain.Roles;
-
 namespace Kaban.Worker.Features.Teams;
 
 public sealed class CreateTeamRoleConsumer(
@@ -54,7 +53,7 @@ public sealed class CreateTeamRoleConsumer(
             return;
         }
 
-        var role = new RoleEntity { TeamId = request.TeamId, RoleName = roleName };
+        var role = new Roles { TeamId = request.TeamId, RoleName = roleName };
         db.Add(role);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);

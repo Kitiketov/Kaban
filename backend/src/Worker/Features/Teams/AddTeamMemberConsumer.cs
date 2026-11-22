@@ -1,10 +1,9 @@
 using Contracts.Features.Teams.AddMember;
 using Contracts.Features.Teams.Common;
+using Kaban.Worker.Features.Teams.Domain;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using UserTeamEntity = Kaban.Worker.Infrastructure.Database.Domain.UserTeams;
-
 namespace Kaban.Worker.Features.Teams;
 
 public sealed class AddTeamMemberConsumer(
@@ -61,7 +60,7 @@ public sealed class AddTeamMemberConsumer(
 
         var memberRole = await db.Roles
             .SingleAsync(x => x.TeamId == request.TeamId && x.RoleName == TeamRoles.Member, ct);
-        db.Add(new UserTeamEntity { UserId = request.UserId, TeamId = request.TeamId, RoleId = memberRole.Id });
+        db.Add(new UserTeams { UserId = request.UserId, TeamId = request.TeamId, RoleId = memberRole.Id });
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
 

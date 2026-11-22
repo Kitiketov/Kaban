@@ -1,11 +1,10 @@
 using Contracts.Features.Projects.Common;
 using Contracts.Features.Projects.Create;
+using Kaban.Worker.Features.Projects.Domain;
 using Kaban.Worker.Features.Teams;
 using Kaban.Worker.Infrastructure.Database;
-using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using ProjectEntity = Kaban.Worker.Infrastructure.Database.Domain.Projects;
 
 namespace Kaban.Worker.Features.Projects;
 
@@ -45,7 +44,7 @@ public sealed class CreateProjectConsumer(
             return;
         }
 
-        var project = new ProjectEntity { ProjectName = request.Name.Trim() };
+        var project = new Domain.Projects{ ProjectName = request.Name.Trim() };
         db.Add(project);
         db.Add(new TeamProjects { ProjectId = project.Id, Project = project, TeamId = request.TeamId });
         await db.SaveChangesAsync(ct);

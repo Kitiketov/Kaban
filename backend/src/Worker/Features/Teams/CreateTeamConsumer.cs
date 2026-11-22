@@ -1,9 +1,9 @@
 using Contracts.Features.Teams.Common;
 using Contracts.Features.Teams.Create;
+using Kaban.Worker.Features.Teams.Domain;
+using Kaban.Worker.Features.Users.Domain;
 using Kaban.Worker.Infrastructure.Database;
-using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
-using TeamEntity = Kaban.Worker.Infrastructure.Database.Domain.Teams;
 
 namespace Kaban.Worker.Features.Teams;
 
@@ -20,7 +20,7 @@ public sealed class CreateTeamConsumer(KabanDatabaseContext db, ILogger<CreateTe
             return;
         }
 
-        var team = new TeamEntity { TeamName = request.Name.Trim() };
+        var team = new Domain.Teams { TeamName = request.Name.Trim() };
         var ownerRole = new Roles { RoleName = TeamRoles.Owner, TeamId = team.Id, Team = team };
         var memberRole = new Roles { RoleName = TeamRoles.Member, TeamId = team.Id, Team = team };
         db.AddRange(team, ownerRole, memberRole);
