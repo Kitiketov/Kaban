@@ -1,7 +1,8 @@
+using Kaban.Worker.Features.Projects.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Features.Projects.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Configurations;
 
 public sealed class ProjectsConfiguration : IEntityTypeConfiguration<Projects>
 {

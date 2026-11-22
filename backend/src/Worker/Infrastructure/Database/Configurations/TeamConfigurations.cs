@@ -1,7 +1,8 @@
+using Kaban.Worker.Features.Teams.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Features.Teams.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Configurations;
 
 public sealed class TeamsConfiguration : IEntityTypeConfiguration<Teams>
 {

@@ -1,7 +1,8 @@
+using Kaban.Worker.Features.Boards.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Features.Boards.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Configurations;
 
 public sealed class BoardsConfiguration : IEntityTypeConfiguration<Boards>
 {

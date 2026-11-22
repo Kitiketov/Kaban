@@ -1,7 +1,8 @@
+using Kaban.Worker.Features.Tasks.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Features.Tasks.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Configurations;
 
 public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
 {

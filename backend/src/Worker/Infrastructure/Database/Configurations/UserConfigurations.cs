@@ -1,8 +1,9 @@
 using Kaban.Worker.Features.Teams.Domain;
+using Kaban.Worker.Features.Users.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Kaban.Worker.Features.Users.Domain;
+namespace Kaban.Worker.Infrastructure.Database.Configurations;
 
 public sealed class UsersConfiguration : IEntityTypeConfiguration<Users>
 {
