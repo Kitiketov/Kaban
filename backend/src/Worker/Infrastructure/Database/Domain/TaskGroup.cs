@@ -13,7 +13,7 @@ public enum PriorityEnum
     [Display(Name = "Very high")] VeryHigh
 }
 
-public class Tasks : ITable
+public class Tasks
 {
     public int Id { get; set; }
     public required string Name { get; set; }
@@ -57,7 +57,7 @@ public sealed class TasksConfiguration : IEntityTypeConfiguration<Tasks>
     }
 }
 
-public class TaskTags : ITable
+public class TaskTags
 {
     public int Id { get; set; }
     public required string TagName { get; set; }
@@ -80,7 +80,7 @@ public sealed class TaskTagsConfiguration : IEntityTypeConfiguration<TaskTags>
     }
 }
 
-public class UserTasks : ITable
+public class UserTasks
 {
     public int UserId { get; set; }
     public Users? User { get; set; }

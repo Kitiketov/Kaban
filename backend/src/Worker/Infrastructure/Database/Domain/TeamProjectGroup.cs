@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Kaban.Worker.Infrastructure.Database.Domain;
 
-public class Teams : ITable
+public class Teams
 {
     public int Id { get; set; }
     public required string TeamName { get; set; }
@@ -19,7 +19,7 @@ public sealed class TeamsConfiguration : IEntityTypeConfiguration<Teams>
     }
 }
 
-public class Projects : ITable
+public class Projects
 {
     public int Id { get; set; }
     public required string ProjectName { get; set; }
@@ -35,7 +35,7 @@ public sealed class ProjectsConfiguration : IEntityTypeConfiguration<Projects>
     }
 }
 
-public class Roles : ITable
+public class Roles
 {
     public int Id { get; set; }
     public required string RoleName { get; set; }
@@ -57,7 +57,7 @@ public sealed class RolesConfiguration : IEntityTypeConfiguration<Roles>
     }
 }
 
-public class TeamProjects : ITable
+public class TeamProjects
 {
     public int ProjectId { get; set; }
     public Projects? Project { get; set; }

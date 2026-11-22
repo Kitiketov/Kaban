@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Kaban.Worker.Infrastructure.Database.Domain;
 
-public class Boards : ITable
+public class Boards
 {
     public int Id { get; set; }
     public required string Name { get; set; }
@@ -24,7 +24,7 @@ public sealed class BoardsConfiguration : IEntityTypeConfiguration<Boards>
     }
 }
 
-public class BoardColumns : ITable
+public class BoardColumns
 {
     public int Id { get; set; }
     public required string ColumnName { get; set; }
@@ -49,7 +49,7 @@ public sealed class BoardColumnsConfiguration : IEntityTypeConfiguration<BoardCo
     }
 }
 
-public class BoardTags : ITable
+public class BoardTags
 {
     public int TagId { get; set; }
     public TaskTags? Tag { get; set; }

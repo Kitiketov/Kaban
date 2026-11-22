@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Kaban.Worker.Infrastructure.Database.Domain;
 
-public class Users : ITable
+public class Users
 {
     public int Id { get; set; }
     public required string Name { get; set; }
@@ -25,7 +25,7 @@ public sealed class UsersConfiguration : IEntityTypeConfiguration<Users>
     }
 }
 
-public class UserTeams : ITable
+public class UserTeams
 {
     public int UserId { get; set; }
     public Users? User { get; set; }
