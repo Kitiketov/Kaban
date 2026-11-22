@@ -23,7 +23,7 @@ public sealed class GetBoardConsumer(KabanDatabaseContext db,
 
         var columns = await db.BoardColumns.AsNoTracking().Where(x => x.BoardId == board.Id)
             .OrderBy(x => x.BoardOrder).Select(x => new BoardColumnDetails(x.Id, x.ColumnName, x.BoardOrder, 
-               x.Tasks.Select(t => TaskService.ToTaskSuccess(t)).ToList())).ToListAsync(ct);
+               x.Tasks.Select(t => t.ToTaskSuccess()).ToList())).ToListAsync(ct);
         await context.RespondAsync(new BoardDetails(board.Id, board.ProjectId, board.Name, columns));
 
         logger.LogInformation("Returned board {BoardId} with {ColumnCount} columns", board.Id, columns.Count);
