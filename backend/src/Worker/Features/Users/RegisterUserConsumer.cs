@@ -26,8 +26,7 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
         var ct = context.CancellationToken;
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         // Serialize registrations for the same normalized email across Worker instances.
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock(hashtextextended({request.Email}, 1))", ct);
+        await db.Database.AcquireResourceLockAsync(LockResource.UserEmail, request.Email, ct: ct);
         if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
         {
             await transaction.RollbackAsync(ct);

@@ -4,7 +4,6 @@ using Kaban.Worker.Features.Boards;
 using Kaban.Worker.Features.Tasks.Domain;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
-using TaskEntity = Kaban.Worker.Features.Tasks.Domain.Tasks;
 
 namespace Kaban.Worker.Features.Tasks;
 
@@ -46,7 +45,7 @@ public sealed class TaskCreateConsumer(
 
         var rank = await rankService.GetNextColumnRankAsync(request.ColumnId, ct);
 
-        var task = TaskEntity.Create(
+        var task = Domain.Tasks.Create(
             name: request.Name,
             columnId: request.ColumnId,
             rank: rank,

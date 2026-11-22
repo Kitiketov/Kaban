@@ -25,8 +25,7 @@ public sealed class ChangeMemberRoleConsumer(
         var roleName = request.Role.Trim();
 
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock({request.TeamId})", ct);
+        await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
 
         var teamExists = await db.Teams.AnyAsync(x => x.Id == request.TeamId, ct);
         if (!teamExists)
