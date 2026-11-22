@@ -13,6 +13,9 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
         var request = context.Message;
         var ct = context.CancellationToken;
 
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.AcquireResourceLockAsync(LockResource.Board, request.BoardId, ct);
+
         var board = await db.Boards.FirstOrDefaultAsync(x => x.Id == request.BoardId, ct);
         if (board is null)
         {
@@ -23,6 +26,8 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
 
         db.Remove(board);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
         await context.RespondAsync(new BoardDeleted(true));
 
         logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, true);

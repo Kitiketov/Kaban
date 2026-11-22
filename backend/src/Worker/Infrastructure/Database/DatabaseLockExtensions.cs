@@ -7,8 +7,8 @@ public enum LockResource
 {
     BoardColumn = 1,
     Team = 2,
-    Project = 3,
-    UserEmail = 4
+    UserEmail = 3,
+    Board = 4,
 }
 
 public static class DatabaseLockExtensions

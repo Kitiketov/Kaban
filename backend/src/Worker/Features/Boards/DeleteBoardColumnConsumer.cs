@@ -13,6 +13,9 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
         var request = context.Message;
         var ct = context.CancellationToken;
 
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.AcquireResourceLockAsync(LockResource.BoardColumn, request.ColumnId, ct);
+
         var column = await db.BoardColumns.FirstOrDefaultAsync(x => x.Id == request.ColumnId, ct);
         if (column is null)
         {
@@ -23,6 +26,8 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
 
         db.Remove(column);
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
         await context.RespondAsync(new BoardColumnDeleted(true));
 
         logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, true);

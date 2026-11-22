@@ -14,7 +14,10 @@ public sealed class AddBoardColumnConsumer(KabanDatabaseContext db, ILogger<AddB
         var request = context.Message;
         var ct = context.CancellationToken;
 
-        if (!await db.Boards.AnyAsync(x => x.Id == request.BoardId, ct))
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        await db.Database.AcquireResourceLockAsync(LockResource.Board, request.BoardId, ct);
+
+        if (!await db.Boards.AsNoTracking().AnyAsync(x => x.Id == request.BoardId, ct))
             throw new InvalidOperationException("Board not found.");
 
         var order = (await db.BoardColumns.Where(x => x.BoardId == request.BoardId)
@@ -30,6 +33,8 @@ public sealed class AddBoardColumnConsumer(KabanDatabaseContext db, ILogger<AddB
         db.Add(column);
 
         await db.SaveChangesAsync(ct);
+        await tx.CommitAsync(ct);
+
         await context.RespondAsync(
             new BoardColumnAdded(column.Id, column.BoardId, column.ColumnName, column.BoardOrder));
 

@@ -52,13 +52,9 @@ public sealed class TaskMoveConsumer(
         }
 
         if (task.BoardColumnId != request.ColumnId)
-        {
             task.MoveToColumn(request.ColumnId, newRank);
-        }
         else
-        {
             task.SetRank(newRank);
-        }
 
         var assignedUserId = await dbContext.UserTasks
             .Where(ut => ut.TaskId == task.Id)
