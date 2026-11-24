@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.AddColumn;
 using Kaban.Api.Features.Boards.Application.DTO;
 using MassTransit;
 using MediatR;
@@ -10,7 +10,7 @@ public sealed class AddBoardColumnHandler(
 {
     public async Task<BoardColumnDto> Handle(AddBoardColumnCommand command, CancellationToken ct)
     {
-        var r = await client.GetResponse<BoardColumnAdded>(new AddBoardColumnRequest(command.BoardId, command.Name),
+        var r = await client.GetResponse<AddBoardColumnSuccess>(new AddBoardColumnRequest(command.BoardId, command.Name),
             ct);
 
         return new BoardColumnDto(r.Message.Id, r.Message.Name, r.Message.Order);

@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Create;
 using Kaban.Worker.Infrastructure.Database;
 using Kaban.Worker.Infrastructure.Database.Domain;
 using MassTransit;
@@ -23,7 +23,7 @@ public sealed class CreateBoardConsumer(KabanDatabaseContext db, ILogger<CreateB
         var board = new BoardEntity { ProjectId = request.ProjectId, Name = request.Name };
         db.Add(board);
         await db.SaveChangesAsync(ct);
-        await context.RespondAsync(new BoardCreated(board.Id, board.ProjectId, board.Name));
+        await context.RespondAsync(new CreateBoardSuccess(board.Id, board.ProjectId, board.Name));
 
         logger.LogInformation("Created board {BoardId} for project {ProjectId}", board.Id, board.ProjectId);
     }
