@@ -25,22 +25,24 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
         }
 
         var ct = context.CancellationToken;
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // Serialize registrations for the same normalized email across Worker instances.
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock(hashtextextended({request.Email}, 1))", ct);
-        if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new UserFailure("email_conflict"));
-            return;
-        }
-
         var user = new UserEntity
             { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
-        db.Add(user);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
+        {
+            // Serialize registrations for the same normalized email across Worker instances.
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({request.Email}, 1))", ct);
+            if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
+            {
+                await context.RespondAsync(new UserFailure("email_conflict"));
+                return;
+            }
+
+            db.Add(user);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
         await context.RespondAsync(new RegisterUserSuccess(user.Id));
     }
 }
