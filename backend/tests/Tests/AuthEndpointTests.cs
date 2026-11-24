@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
-using Contracts.Features.Users;
+using Contracts.Features.Users.Common;
+using Contracts.Features.Users.Get;
+using Contracts.Features.Users.Search;
+using Contracts.Features.Users.GetCredentials;
+using Contracts.Features.Users.Register;
 using Kaban.Api.Features.Auth.Application.DTO;
 using Kaban.Api.Features.Auth.Infrastructure;
 using Kaban.Api.Features.Users.Application.DTO;
@@ -127,10 +131,10 @@ public sealed class AuthApiFactory : WebApplicationFactory<Kaban.Api.Features.Au
             services.AddMassTransitTestHarness(x =>
             {
                 x.AddConsumer<StubUsersConsumer>();
-                x.AddRequestClient<GetCredentialsRequested>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<GetUserRequested>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<SearchUsersRequested>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<RegisterUserRequested>(RequestTimeout.After(s: 3));
+                x.AddRequestClient<GetCredentialsRequest>(RequestTimeout.After(s: 3));
+                x.AddRequestClient<GetUserRequest>(RequestTimeout.After(s: 3));
+                x.AddRequestClient<SearchUsersRequest>(RequestTimeout.After(s: 3));
+                x.AddRequestClient<RegisterUserRequest>(RequestTimeout.After(s: 3));
                 x.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));
             });
         });
@@ -145,18 +149,18 @@ public sealed class Probe
 }
 
 public sealed class StubUsersConsumer(CredentialsService credentials, Probe probe) :
-    IConsumer<GetCredentialsRequested>, IConsumer<GetUserRequested>,
-    IConsumer<SearchUsersRequested>, IConsumer<RegisterUserRequested>
+    IConsumer<GetCredentialsRequest>, IConsumer<GetUserRequest>,
+    IConsumer<SearchUsersRequest>, IConsumer<RegisterUserRequest>
 {
-    public async Task Consume(ConsumeContext<GetCredentialsRequested> context)
+    public async Task Consume(ConsumeContext<GetCredentialsRequest> context)
     {
         Interlocked.Increment(ref probe.Calls);
         if (context.Message.Email == "user@example.com")
-            await context.RespondAsync(new CredentialsFound(7, credentials.Hash("good-password")));
+            await context.RespondAsync(new GetCredentialsSuccess(7, credentials.Hash("good-password")));
         else await context.RespondAsync(new UserFailure("invalid_credentials"));
     }
 
-    public async Task Consume(ConsumeContext<GetUserRequested> context)
+    public async Task Consume(ConsumeContext<GetUserRequest> context)
     {
         Interlocked.Increment(ref probe.Calls);
         switch (context.Message.UserId)
@@ -164,17 +168,17 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
             case 88: await context.RespondAsync(new UserFailure("not_found")); return;
             case 99: throw new InvalidOperationException("private-database-detail");
             case 100: return;
-            default: await context.RespondAsync(new UserResult(7, "User", "user@example.com")); return;
+            default: await context.RespondAsync(new UserSuccess(7, "User", "user@example.com")); return;
         }
     }
 
-    public async Task Consume(ConsumeContext<SearchUsersRequested> context)
+    public async Task Consume(ConsumeContext<SearchUsersRequest> context)
     {
         Interlocked.Increment(ref probe.Calls);
-        await context.RespondAsync(new UsersFound([new UserResult(7, "User", "user@example.com")]));
+        await context.RespondAsync(new SearchUsersSuccess([new UserSuccess(7, "User", "user@example.com")]));
     }
 
-    public async Task Consume(ConsumeContext<RegisterUserRequested> context)
+    public async Task Consume(ConsumeContext<RegisterUserRequest> context)
     {
         Interlocked.Increment(ref probe.Calls);
         Assert.Equal("new@example.com", context.Message.Email);
@@ -183,6 +187,6 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
         Assert.True(credentials.Verify("good-password", context.Message.PasswordHash));
         probe.RegistrationReceived?.TrySetResult();
         if (probe.ReleaseRegistration is not null) await probe.ReleaseRegistration.Task;
-        await context.RespondAsync(new UserRegistered(7));
+        await context.RespondAsync(new RegisterUserSuccess(7));
     }
 }

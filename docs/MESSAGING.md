@@ -133,3 +133,29 @@ Windows-хоста брокер доступен по `localhost:5672`, PostgreS
 Официальное описание MassTransit request/response: https://masstransit.io/documentation/concepts/requests
 
 Для регистрации Users по прямому решению пользователя исключён механизм OperationId/Fingerprint и таблица операций. Повтор с занятым email возвращает 409; прежний успешный ответ не воспроизводится. Подробности: docs/AUTH.md.
+
+## Размещение и имена контрактов
+
+Контракты хранятся в `backend/src/Contracts/Features/<Feature>/`, сгруппированные по операциям:
+
+```text
+<Feature>/
+  <Operation>/
+    Request.cs
+    Response.cs
+  Common/
+    Responses.cs
+    Errors.cs
+```
+
+- `Request.cs` содержит тип запроса `<Operation><Entity>Request`.
+- `Response.cs` содержит успешный ответ `<Operation><Entity>Success`.
+- Ответы, используемые несколькими операциями, размещаются в `Common/Responses.cs`,
+  общие бизнес-отказы — в `Common/Errors.cs`. Не создавай отдельный ответ операции,
+  если она уже использует общий тип.
+- Namespace соответствует папке: `Contracts.Features.<Feature>.<Operation>` или
+  `Contracts.Features.<Feature>.Common`. Имя файла короткое, имя типа — полное.
+- Создавай только необходимые папки и файлы.
+
+Переименование типов и namespaces меняет идентификаторы сообщений MassTransit: API и Worker
+нужно обновлять согласованно; сообщения старых типов в очередях не преобразуются автоматически.
