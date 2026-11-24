@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.DeleteColumn;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -16,14 +16,14 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
         var column = await db.BoardColumns.FirstOrDefaultAsync(x => x.Id == request.ColumnId, ct);
         if (column is null)
         {
-            await context.RespondAsync(new BoardColumnDeleted(false));
+            await context.RespondAsync(new DeleteBoardColumnSuccess(false));
             logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, false);
             return;
         }
 
         db.Remove(column);
         await db.SaveChangesAsync(ct);
-        await context.RespondAsync(new BoardColumnDeleted(true));
+        await context.RespondAsync(new DeleteBoardColumnSuccess(true));
 
         logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, true);
     }

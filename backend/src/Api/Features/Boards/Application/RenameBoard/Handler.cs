@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Rename;
 using Kaban.Api.Features.Boards.Application.DTO;
 using MassTransit;
 using MediatR;
@@ -10,7 +10,7 @@ public sealed class RenameBoardHandler(IRequestClient<RenameBoardRequest> client
 {
     public async Task<BoardDto> Handle(RenameBoardCommand command, CancellationToken ct)
     {
-        var r = await client.GetResponse<BoardRenamed>(new RenameBoardRequest(command.BoardId, command.Name), ct);
+        var r = await client.GetResponse<RenameBoardSuccess>(new RenameBoardRequest(command.BoardId, command.Name), ct);
 
         return new BoardDto(r.Message.Id, r.Message.ProjectId, r.Message.Name);
     }

@@ -1,3 +1,3 @@
-namespace Contracts.Features.Boards;
+namespace Contracts.Features.Boards.Delete;
 
 public sealed record DeleteBoardRequest(int BoardId);

@@ -1,3 +1,3 @@
-namespace Contracts.Features.Boards;
+namespace Contracts.Features.Boards.Get;
 
 public sealed record GetBoardRequest(int BoardId);
