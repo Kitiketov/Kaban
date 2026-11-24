@@ -37,7 +37,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
 
         client.DefaultRequestHeaders.Authorization = new("Bearer", tokens.AccessToken);
         var me = await client.GetFromJsonAsync<UserDto>("/api/users/me");
-        Assert.Equal(7, me!.Id);
+        Assert.Equal(AuthTestUsers.ExistingUserId, me!.Id);
         var search = await client.GetFromJsonAsync<UserDto[]>("/api/users?query=user&limit=10");
         Assert.Single(search!);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("/api/auth/tokens/refresh", null)).StatusCode);
@@ -58,7 +58,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
         Assert.Equal(HttpStatusCode.BadRequest, badLogin.StatusCode);
         var badRegistration = await client.PostAsJsonAsync("/api/users", new { email = "ok@example.com", name = "Name", password = "short" });
         Assert.Equal(HttpStatusCode.BadRequest, badRegistration.StatusCode);
-        var tokens = factory.Services.GetRequiredService<TokenService>().Create(7);
+        var tokens = factory.Services.GetRequiredService<TokenService>().Create(AuthTestUsers.ExistingUserId);
         client.DefaultRequestHeaders.Authorization = new("Bearer", tokens.AccessToken);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/users?query=user&limit=101")).StatusCode);
         Assert.Equal(before, factory.Services.GetRequiredService<Probe>().Calls);
@@ -98,9 +98,9 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     }
 
     [Theory]
-    [InlineData(88, HttpStatusCode.NotFound)]
-    [InlineData(99, HttpStatusCode.BadGateway)]
-    [InlineData(100, HttpStatusCode.ServiceUnavailable)]
+    [InlineData(AuthTestUsers.MissingUserId, HttpStatusCode.NotFound)]
+    [InlineData(AuthTestUsers.FaultUserId, HttpStatusCode.BadGateway)]
+    [InlineData(AuthTestUsers.TimeoutUserId, HttpStatusCode.ServiceUnavailable)]
     public async Task WorkerErrors_AreDistinctAndDoNotLeakDetails(int userId, HttpStatusCode expected)
     {
         client.DefaultRequestHeaders.Authorization = new("Bearer", factory.Services.GetRequiredService<TokenService>().Create(userId).AccessToken);
@@ -113,9 +113,17 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     public async Task InvalidSignature_IsRejected()
     {
         var other = new TokenService(new AuthOptions(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)), "kaban", "kaban-client"));
-        client.DefaultRequestHeaders.Authorization = new("Bearer", other.Create(7).AccessToken);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", other.Create(AuthTestUsers.ExistingUserId).AccessToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/users/me")).StatusCode);
     }
+}
+
+internal static class AuthTestUsers
+{
+    public const int ExistingUserId = 7;
+    public const int MissingUserId = 88;
+    public const int FaultUserId = 99;
+    public const int TimeoutUserId = 100;
 }
 
 public sealed class AuthApiFactory : WebApplicationFactory<Kaban.Api.Features.Auth.Presentation.AuthController>
@@ -156,7 +164,7 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
     {
         Interlocked.Increment(ref probe.Calls);
         if (context.Message.Email == "user@example.com")
-            await context.RespondAsync(new GetCredentialsSuccess(7, credentials.Hash("good-password")));
+            await context.RespondAsync(new GetCredentialsSuccess(AuthTestUsers.ExistingUserId, credentials.Hash("good-password")));
         else await context.RespondAsync(new UserFailure("invalid_credentials"));
     }
 
@@ -165,17 +173,17 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
         Interlocked.Increment(ref probe.Calls);
         switch (context.Message.UserId)
         {
-            case 88: await context.RespondAsync(new UserFailure("not_found")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new UserSuccess(7, "User", "user@example.com")); return;
+            case AuthTestUsers.MissingUserId: await context.RespondAsync(new UserFailure("not_found")); return;
+            case AuthTestUsers.FaultUserId: throw new InvalidOperationException("private-database-detail");
+            case AuthTestUsers.TimeoutUserId: return;
+            default: await context.RespondAsync(new UserSuccess(AuthTestUsers.ExistingUserId, "User", "user@example.com")); return;
         }
     }
 
     public async Task Consume(ConsumeContext<SearchUsersRequest> context)
     {
         Interlocked.Increment(ref probe.Calls);
-        await context.RespondAsync(new SearchUsersSuccess([new UserSuccess(7, "User", "user@example.com")]));
+        await context.RespondAsync(new SearchUsersSuccess([new UserSuccess(AuthTestUsers.ExistingUserId, "User", "user@example.com")]));
     }
 
     public async Task Consume(ConsumeContext<RegisterUserRequest> context)
@@ -187,6 +195,6 @@ public sealed class StubUsersConsumer(CredentialsService credentials, Probe prob
         Assert.True(credentials.Verify("good-password", context.Message.PasswordHash));
         probe.RegistrationReceived?.TrySetResult();
         if (probe.ReleaseRegistration is not null) await probe.ReleaseRegistration.Task;
-        await context.RespondAsync(new RegisterUserSuccess(7));
+        await context.RespondAsync(new RegisterUserSuccess(AuthTestUsers.ExistingUserId));
     }
 }
