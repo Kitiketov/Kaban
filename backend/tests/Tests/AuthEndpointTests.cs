@@ -14,22 +14,34 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
+using Moq;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Kaban.Tests;
 
-public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
+public sealed class AuthEndpointTests : IDisposable
 {
     private readonly AuthApiFactory factory;
     private readonly HttpClient client;
-    public AuthEndpointTests(AuthApiFactory factory)
+    public AuthEndpointTests()
     {
-        this.factory = factory;
+        factory = new AuthApiFactory();
         client = factory.CreateClient();
     }
 
     [Fact]
     public async Task Login_Me_Search_Refresh_UseDistinctTokenPolicies()
     {
+        factory.Credentials.Setup(x => x.GetResponse<GetCredentialsSuccess, UserFailure>(
+            new GetCredentialsRequest("user@example.com"), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(AuthApiFactory.Success<GetCredentialsSuccess>(new(AuthTestUsers.ExistingUserId,
+                factory.Services.GetRequiredService<CredentialsService>().Hash("good-password"))));
+        factory.Users.Setup(x => x.GetResponse<UserSuccess, UserFailure>(
+            new GetUserRequest(AuthTestUsers.ExistingUserId), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(AuthApiFactory.Success<UserSuccess>(new(AuthTestUsers.ExistingUserId, "User", "user@example.com")));
+        factory.Search.Setup(x => x.GetResponse<SearchUsersSuccess, UserFailure>(
+            new SearchUsersRequest(AuthTestUsers.ExistingUserId, "user", 10), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(AuthApiFactory.Success<SearchUsersSuccess>(new([new(AuthTestUsers.ExistingUserId, "User", "user@example.com")])));
         var login = await client.PostAsJsonAsync("/api/auth/sessions", new { email = " USER@example.com ", password = "good-password" });
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         var tokens = (await login.Content.ReadFromJsonAsync<TokenPairDto>())!;
@@ -53,7 +65,6 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task InvalidInput_IsRejectedBeforeMessaging()
     {
-        var before = factory.Services.GetRequiredService<Probe>().Calls;
         var badLogin = await client.PostAsJsonAsync("/api/auth/sessions", new { email = "bad", password = "" });
         Assert.Equal(HttpStatusCode.BadRequest, badLogin.StatusCode);
         var badRegistration = await client.PostAsJsonAsync("/api/users", new { email = "ok@example.com", name = "Name", password = "short" });
@@ -61,7 +72,10 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
         var tokens = factory.Services.GetRequiredService<TokenService>().Create(AuthTestUsers.ExistingUserId);
         client.DefaultRequestHeaders.Authorization = new("Bearer", tokens.AccessToken);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/users?query=user&limit=101")).StatusCode);
-        Assert.Equal(before, factory.Services.GetRequiredService<Probe>().Calls);
+        factory.Credentials.VerifyNoOtherCalls();
+        factory.Registration.VerifyNoOtherCalls();
+        factory.Search.VerifyNoOtherCalls();
+        factory.Users.VerifyNoOtherCalls();
     }
 
     [Theory]
@@ -69,6 +83,13 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [InlineData("user@example.com", "wrong-password")]
     public async Task Login_UsesSameFailureForUnknownEmailAndBadPassword(string email, string password)
     {
+        var setup = factory.Credentials.Setup(x => x.GetResponse<GetCredentialsSuccess, UserFailure>(
+            new GetCredentialsRequest(email), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()));
+        if (email == "missing@example.com")
+            setup.ReturnsAsync(AuthApiFactory.Failure<GetCredentialsSuccess>("invalid_credentials"));
+        else
+            setup.ReturnsAsync(AuthApiFactory.Success<GetCredentialsSuccess>(new(AuthTestUsers.ExistingUserId,
+                factory.Services.GetRequiredService<CredentialsService>().Hash("good-password"))));
         var result = await client.PostAsJsonAsync("/api/auth/sessions", new { email, password });
         Assert.Equal(HttpStatusCode.Unauthorized, result.StatusCode);
         Assert.Contains("Invalid credentials", await result.Content.ReadAsStringAsync());
@@ -77,9 +98,12 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task Register_WithoutIdempotencyKey_WaitsForWorker_AndDoesNotExposePasswordHash()
     {
-        var probe = factory.Services.GetRequiredService<Probe>();
-        probe.ReleaseRegistration = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        probe.RegistrationReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var received = new TaskCompletionSource<RegisterUserRequest>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reply = new TaskCompletionSource<Response<RegisterUserSuccess, UserFailure>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        factory.Registration.Setup(x => x.GetResponse<RegisterUserSuccess, UserFailure>(
+            It.IsAny<RegisterUserRequest>(), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .Callback<RegisterUserRequest, CancellationToken, RequestTimeout>((message, _, _) => received.TrySetResult(message))
+            .Returns(reply.Task);
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/users")
@@ -87,23 +111,35 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
                 Content = JsonContent.Create(new { email = " NEW@example.com ", name = " New ", password = "good-password" })
             };
             var pending = client.SendAsync(request);
-            await probe.RegistrationReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var message = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal("new@example.com", message.Email);
+            Assert.Equal("New", message.Name);
+            Assert.NotEqual("good-password", message.PasswordHash);
+            Assert.True(factory.Services.GetRequiredService<CredentialsService>().Verify("good-password", message.PasswordHash));
             Assert.False(pending.IsCompleted);
-            probe.ReleaseRegistration.SetResult();
+            reply.SetResult(AuthApiFactory.Success<RegisterUserSuccess>(new(AuthTestUsers.ExistingUserId)));
             var response = await pending;
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             Assert.Equal("", await response.Content.ReadAsStringAsync());
         }
-        finally { probe.ReleaseRegistration.TrySetResult(); }
+        finally { reply.TrySetCanceled(); }
     }
 
     [Theory]
-    [InlineData(AuthTestUsers.MissingUserId, HttpStatusCode.NotFound)]
-    [InlineData(AuthTestUsers.FaultUserId, HttpStatusCode.BadGateway)]
-    [InlineData(AuthTestUsers.TimeoutUserId, HttpStatusCode.ServiceUnavailable)]
-    public async Task WorkerErrors_AreDistinctAndDoNotLeakDetails(int userId, HttpStatusCode expected)
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task WorkerErrors_AreDistinctAndDoNotLeakDetails(HttpStatusCode expected)
     {
-        client.DefaultRequestHeaders.Authorization = new("Bearer", factory.Services.GetRequiredService<TokenService>().Create(userId).AccessToken);
+        var setup = factory.Users.Setup(x => x.GetResponse<UserSuccess, UserFailure>(
+            new GetUserRequest(AuthTestUsers.ExistingUserId), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()));
+        if (expected == HttpStatusCode.NotFound)
+            setup.ReturnsAsync(AuthApiFactory.Failure<UserSuccess>("not_found"));
+        else if (expected == HttpStatusCode.BadGateway)
+            setup.ThrowsAsync(new RequestFaultException("private-database-detail", Mock.Of<Fault>(x => x.Exceptions == Array.Empty<ExceptionInfo>())));
+        else
+            setup.ThrowsAsync(new RequestTimeoutException(Guid.NewGuid().ToString()));
+        client.DefaultRequestHeaders.Authorization = new("Bearer", factory.Services.GetRequiredService<TokenService>().Create(AuthTestUsers.ExistingUserId).AccessToken);
         var response = await client.GetAsync("/api/users/me");
         Assert.Equal(expected, response.StatusCode);
         Assert.DoesNotContain("private-database-detail", await response.Content.ReadAsStringAsync());
@@ -116,85 +152,46 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
         client.DefaultRequestHeaders.Authorization = new("Bearer", other.Create(AuthTestUsers.ExistingUserId).AccessToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/users/me")).StatusCode);
     }
+    public void Dispose()
+    {
+        client.Dispose();
+        factory.Dispose();
+    }
 }
 
 internal static class AuthTestUsers
 {
     public const int ExistingUserId = 7;
-    public const int MissingUserId = 88;
-    public const int FaultUserId = 99;
-    public const int TimeoutUserId = 100;
+
 }
 
 public sealed class AuthApiFactory : WebApplicationFactory<Kaban.Api.Features.Auth.Presentation.AuthController>
 {
+    public Mock<IRequestClient<GetCredentialsRequest>> Credentials { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<GetUserRequest>> Users { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<SearchUsersRequest>> Search { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<RegisterUserRequest>> Registration { get; } = new(MockBehavior.Strict);
+
+    public static Response<T, UserFailure> Success<T>(T message) where T : class =>
+        new(Task.FromResult(Mock.Of<Response<T>>(x => x.Message == message)),
+            new TaskCompletionSource<Response<UserFailure>>().Task);
+
+    public static Response<T, UserFailure> Failure<T>(string code) where T : class =>
+        new(new TaskCompletionSource<Response<T>>().Task,
+            Task.FromResult(Mock.Of<Response<UserFailure>>(x => x.Message == new UserFailure(code))));
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
         builder.UseSetting("Auth:SigningKey", Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)));
-        builder.UseSetting("Messaging:RequestTimeoutSeconds", "3");
         builder.ConfigureServices(services =>
         {
-            services.AddSingleton<Probe>();
-            services.AddMassTransitTestHarness(x =>
-            {
-                x.AddConsumer<StubUsersConsumer>();
-                x.AddRequestClient<GetCredentialsRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<GetUserRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<SearchUsersRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<RegisterUserRequest>(RequestTimeout.After(s: 3));
-                x.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));
-            });
+            // HTTP tests replace messaging clients and do not run background infrastructure.
+            services.RemoveAll<Microsoft.Extensions.Hosting.IHostedService>();
+            services.AddSingleton(Credentials.Object);
+            services.AddSingleton(Users.Object);
+            services.AddSingleton(Search.Object);
+            services.AddSingleton(Registration.Object);
         });
-    }
-}
-
-public sealed class Probe
-{
-    public int Calls;
-    public TaskCompletionSource? ReleaseRegistration;
-    public TaskCompletionSource? RegistrationReceived;
-}
-
-public sealed class StubUsersConsumer(CredentialsService credentials, Probe probe) :
-    IConsumer<GetCredentialsRequest>, IConsumer<GetUserRequest>,
-    IConsumer<SearchUsersRequest>, IConsumer<RegisterUserRequest>
-{
-    public async Task Consume(ConsumeContext<GetCredentialsRequest> context)
-    {
-        Interlocked.Increment(ref probe.Calls);
-        if (context.Message.Email == "user@example.com")
-            await context.RespondAsync(new GetCredentialsSuccess(AuthTestUsers.ExistingUserId, credentials.Hash("good-password")));
-        else await context.RespondAsync(new UserFailure("invalid_credentials"));
-    }
-
-    public async Task Consume(ConsumeContext<GetUserRequest> context)
-    {
-        Interlocked.Increment(ref probe.Calls);
-        switch (context.Message.UserId)
-        {
-            case AuthTestUsers.MissingUserId: await context.RespondAsync(new UserFailure("not_found")); return;
-            case AuthTestUsers.FaultUserId: throw new InvalidOperationException("private-database-detail");
-            case AuthTestUsers.TimeoutUserId: return;
-            default: await context.RespondAsync(new UserSuccess(AuthTestUsers.ExistingUserId, "User", "user@example.com")); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<SearchUsersRequest> context)
-    {
-        Interlocked.Increment(ref probe.Calls);
-        await context.RespondAsync(new SearchUsersSuccess([new UserSuccess(AuthTestUsers.ExistingUserId, "User", "user@example.com")]));
-    }
-
-    public async Task Consume(ConsumeContext<RegisterUserRequest> context)
-    {
-        Interlocked.Increment(ref probe.Calls);
-        Assert.Equal("new@example.com", context.Message.Email);
-        Assert.Equal("New", context.Message.Name);
-        Assert.NotEqual("good-password", context.Message.PasswordHash);
-        Assert.True(credentials.Verify("good-password", context.Message.PasswordHash));
-        probe.RegistrationReceived?.TrySetResult();
-        if (probe.ReleaseRegistration is not null) await probe.ReleaseRegistration.Task;
-        await context.RespondAsync(new RegisterUserSuccess(AuthTestUsers.ExistingUserId));
     }
 }
