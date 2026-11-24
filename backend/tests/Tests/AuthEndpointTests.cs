@@ -108,7 +108,7 @@ public sealed class AuthEndpointTests : IClassFixture<AuthApiFactory>
     [Fact]
     public async Task InvalidSignature_IsRejected()
     {
-        var other = new TokenService(new AuthOptions { SigningKey = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)) });
+        var other = new TokenService(new AuthOptions(Convert.ToBase64String(RandomNumberGenerator.GetBytes(48)), "kaban", "kaban-client"));
         client.DefaultRequestHeaders.Authorization = new("Bearer", other.Create(7).AccessToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/users/me")).StatusCode);
     }
