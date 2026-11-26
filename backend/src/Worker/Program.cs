@@ -1,5 +1,4 @@
-using Kaban.Worker.Features.Tasks;
-using Kaban.Worker.Features.Boards;
+using Kaban.Worker.Features.Tasks.Application;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +22,7 @@ builder.Logging.AddOpenTelemetry(options =>
     options.ParseStateValues = true;
     options.AddOtlpExporter();
 });
-
+builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
     .WithTracing(tracing => tracing
@@ -37,19 +36,12 @@ builder.Services.AddOpenTelemetry()
         .AddRuntimeInstrumentation()
         .AddMeter("MassTransit")
         .AddOtlpExporter());
-builder.Services.AddDbContext<KabanDatabaseContext>(opt =>
-    opt.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddDbContext<KabanDatabaseContext>(opt => opt
+    .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+    .UseSnakeCaseNamingConvention());
 builder.Services.AddMassTransit(x =>
 {
-    x.AddConsumer<TaskCreateConsumer>();
-    x.AddConsumer<CreateBoardConsumer>();
-    x.AddConsumer<ListBoardsConsumer>();
-    x.AddConsumer<GetBoardConsumer>();
-    x.AddConsumer<RenameBoardConsumer>();
-    x.AddConsumer<DeleteBoardConsumer>();
-    x.AddConsumer<AddBoardColumnConsumer>();
-    x.AddConsumer<RenameBoardColumnConsumer>();
-    x.AddConsumer<DeleteBoardColumnConsumer>();
+    x.AddConsumers(typeof(Program).Assembly);
     x.UsingRabbitMq((context, cfg) =>
     {
         var configuration = context.GetRequiredService<IConfiguration>();

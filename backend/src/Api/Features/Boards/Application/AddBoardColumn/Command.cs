@@ -1,4 +1,4 @@
-using Kaban.Api.Features.Boards.DTO;
+using Kaban.Api.Features.Boards.Application.DTO;
 using MediatR;
 
 namespace Kaban.Api.Features.Boards.Application.AddBoardColumn;

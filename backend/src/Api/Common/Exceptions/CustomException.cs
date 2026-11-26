@@ -6,10 +6,10 @@ public static class CustomException
     {
         // Явно задаем нужный нам порядок выполнения
         services.AddExceptionHandler<ValidationExceptionHandler>();
+        services.AddExceptionHandler<NotFoundExceptionHandler>();
         services.AddExceptionHandler<RequestFaultExceptionHandler>();
         services.AddExceptionHandler<RequestTimeoutExceptionHandler>();
 
         return services;
     }
-
 }

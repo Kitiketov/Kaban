@@ -1,5 +1,5 @@
-using Contracts.Features.Boards;
-using Kaban.Api.Features.Boards.DTO;
+using Contracts.Features.Boards.Create;
+using Kaban.Api.Features.Boards.Application.DTO;
 using MassTransit;
 using MediatR;
 
@@ -11,7 +11,7 @@ public sealed class CreateBoardHandler(IRequestClient<CreateBoardRequest> client
     public async Task<BoardDto> Handle(CreateBoardCommand command, CancellationToken ct)
     {
         var response =
-            await client.GetResponse<BoardCreated>(new CreateBoardRequest(command.ProjectId, command.Name), ct);
+            await client.GetResponse<CreateBoardSuccess>(new CreateBoardRequest(command.ProjectId, command.Name), ct);
         return new BoardDto(response.Message.Id, response.Message.ProjectId, response.Message.Name);
     }
 }

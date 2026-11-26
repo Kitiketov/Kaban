@@ -19,6 +19,7 @@ public sealed class ValidationBehavior<TRequest, TResponse>(
             var result = await validator.ValidateAsync(request, cancellationToken);
             failures.AddRange(result.Errors);
         }
+
         if (failures.Count > 0)
             throw new ValidationException(failures);
 

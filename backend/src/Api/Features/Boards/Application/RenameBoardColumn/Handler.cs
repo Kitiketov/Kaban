@@ -1,5 +1,5 @@
-using Contracts.Features.Boards;
-using Kaban.Api.Features.Boards.DTO;
+using Contracts.Features.Boards.RenameColumn;
+using Kaban.Api.Features.Boards.Application.DTO;
 using MassTransit;
 using MediatR;
 
@@ -10,7 +10,7 @@ public sealed class RenameBoardColumnHandler(
 {
     public async Task<BoardColumnDto> Handle(RenameBoardColumnCommand command, CancellationToken ct)
     {
-        var r = await client.GetResponse<BoardColumnRenamed>(
+        var r = await client.GetResponse<RenameBoardColumnSuccess>(
             new RenameBoardColumnRequest(command.ColumnId, command.Name), ct);
         return new BoardColumnDto(r.Message.Id, r.Message.Name, r.Message.Order);
     }
