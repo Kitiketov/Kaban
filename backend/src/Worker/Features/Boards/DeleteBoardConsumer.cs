@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Delete;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -13,23 +13,24 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
         var request = context.Message;
         var ct = context.CancellationToken;
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.AcquireResourceLockAsync(LockResource.Board, request.BoardId, ct);
-
-        var board = await db.Boards.FirstOrDefaultAsync(x => x.Id == request.BoardId, ct);
-        if (board is null)
+        var deleted = false;
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            await context.RespondAsync(new BoardDeleted(false));
-            logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, false);
-            return;
+            await db.Database.AcquireResourceLockAsync(LockResource.Board, request.BoardId, ct);
+
+            var board = await db.Boards.FirstOrDefaultAsync(x => x.Id == request.BoardId, ct);
+            if (board is not null)
+            {
+                db.Remove(board);
+                await db.SaveChangesAsync(ct);
+                deleted = true;
+            }
+
+            await tx.CommitAsync(ct);
         }
 
-        db.Remove(board);
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        await context.RespondAsync(new DeleteBoardSuccess(deleted));
 
-        await context.RespondAsync(new BoardDeleted(true));
-
-        logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, true);
+        logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, deleted);
     }
 }

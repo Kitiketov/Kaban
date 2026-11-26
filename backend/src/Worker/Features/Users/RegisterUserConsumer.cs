@@ -1,5 +1,6 @@
 using System.Net.Mail;
-using Contracts.Features.Users;
+using Contracts.Features.Users.Common;
+using Contracts.Features.Users.Register;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -7,9 +8,9 @@ using UserEntity = Kaban.Worker.Features.Users.Domain.Users;
 
 namespace Kaban.Worker.Features.Users;
 
-public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<RegisterUserRequested>
+public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<RegisterUserRequest>
 {
-    public async Task Consume(ConsumeContext<RegisterUserRequested> context)
+    public async Task Consume(ConsumeContext<RegisterUserRequest> context)
     {
         var request = context.Message;
         if (
@@ -25,7 +26,7 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
 
         var ct = context.CancellationToken;
         var emailExists = false;
-        UserRegistered? result = null;
+        RegisterUserSuccess? result = null;
         await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
             // Serialize registrations for the same normalized email across Worker instances.
@@ -38,7 +39,7 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
                 db.Add(user);
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
-                result = new UserRegistered(user.Id);
+                result = new RegisterUserSuccess(user.Id);
             }
         }
 
@@ -48,7 +49,7 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
             return;
         }
 
-        var userRegistered = result ?? throw new InvalidOperationException("User registration result was not created.");
-        await context.RespondAsync(userRegistered);
+        await context.RespondAsync(result
+            ?? throw new InvalidOperationException("User registration result was not created."));
     }
 }

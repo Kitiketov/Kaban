@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.RenameColumn;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +20,7 @@ public sealed class RenameBoardColumnConsumer(KabanDatabaseContext db, ILogger<R
 
         column.ColumnName = request.Name;
         await db.SaveChangesAsync(ct);
-        await context.RespondAsync(new BoardColumnRenamed(column.Id, column.BoardId, column.ColumnName,
+        await context.RespondAsync(new RenameBoardColumnSuccess(column.Id, column.BoardId, column.ColumnName,
             column.BoardOrder));
 
         logger.LogInformation("Renamed column {ColumnId} on board {BoardId}", column.Id, column.BoardId);

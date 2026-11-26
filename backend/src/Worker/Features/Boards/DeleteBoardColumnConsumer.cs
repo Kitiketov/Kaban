@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.DeleteColumn;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -13,23 +13,24 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
         var request = context.Message;
         var ct = context.CancellationToken;
 
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.AcquireResourceLockAsync(LockResource.BoardColumn, request.ColumnId, ct);
-
-        var column = await db.BoardColumns.FirstOrDefaultAsync(x => x.Id == request.ColumnId, ct);
-        if (column is null)
+        var deleted = false;
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            await context.RespondAsync(new BoardColumnDeleted(false));
-            logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, false);
-            return;
+            await db.Database.AcquireResourceLockAsync(LockResource.BoardColumn, request.ColumnId, ct);
+
+            var column = await db.BoardColumns.FirstOrDefaultAsync(x => x.Id == request.ColumnId, ct);
+            if (column is not null)
+            {
+                db.Remove(column);
+                await db.SaveChangesAsync(ct);
+                deleted = true;
+            }
+
+            await tx.CommitAsync(ct);
         }
 
-        db.Remove(column);
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
+        await context.RespondAsync(new DeleteBoardColumnSuccess(deleted));
 
-        await context.RespondAsync(new BoardColumnDeleted(true));
-
-        logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, true);
+        logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, deleted);
     }
 }

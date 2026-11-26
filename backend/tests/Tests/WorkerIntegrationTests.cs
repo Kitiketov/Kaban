@@ -1,4 +1,6 @@
-using Contracts.Features.Users;
+using Contracts.Features.Users.Common;
+using Contracts.Features.Users.Get;
+using Contracts.Features.Users.Register;
 using Kaban.Worker.Features.Users;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
@@ -96,8 +98,8 @@ public sealed class WorkerIntegrationTests
             {
                 x.AddConsumer<RegisterUserConsumer>();
                 x.AddConsumer<GetUserConsumer>();
-                x.AddRequestClient<RegisterUserRequested>(new Uri("queue:" + queue), RequestTimeout.After(s: 3));
-                x.AddRequestClient<GetUserRequested>(new Uri("queue:" + queue), RequestTimeout.After(s: 3));
+                x.AddRequestClient<RegisterUserRequest>(new Uri("queue:" + queue + "?durable=false&autodelete=true"), RequestTimeout.After(s: 30));
+                x.AddRequestClient<GetUserRequest>(new Uri("queue:" + queue + "?durable=false&autodelete=true"), RequestTimeout.After(s: 30));
                 x.UsingRabbitMq((context, cfg) =>
                 {
                     cfg.Host(new Uri(Environment.GetEnvironmentVariable("KABAN_TEST_RABBITMQ")!));
@@ -115,14 +117,12 @@ public sealed class WorkerIntegrationTests
             await bus.StartAsync();
             try
             {
-                var request = new RegisterUserRequested("user@example.com", "User", "test-hash");
-                var duplicates = await Task.WhenAll(Enumerable.Range(0, 4).Select(async _ =>
-                {
-                    await using var scope = provider.CreateAsyncScope();
-                    var client = scope.ServiceProvider.GetRequiredService<IRequestClient<RegisterUserRequested>>();
-                    return await client.GetResponse<UserRegistered, UserFailure>(request);
-                }));
-                Assert.Equal(1, duplicates.Count(r => r.Is(out Response<UserRegistered>? _)));
+                await using var scope = provider.CreateAsyncScope();
+                var client = scope.ServiceProvider.GetRequiredService<IRequestClient<RegisterUserRequest>>();
+                var request = new RegisterUserRequest("user@example.com", "User", "test-hash");
+                var duplicates = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ =>
+                    client.GetResponse<RegisterUserSuccess, UserFailure>(request)));
+                Assert.Equal(1, duplicates.Count(r => r.Is(out Response<RegisterUserSuccess>? _)));
                 Assert.Equal(3, duplicates.Count(r => r.Is(out Response<UserFailure>? failure) && failure.Message.Code == "email_conflict"));
                 Assert.Equal(1, await db.Set<UserEntity>().CountAsync());
                 var late = request with { Email = "late@example.com" };
@@ -135,31 +135,20 @@ public sealed class WorkerIntegrationTests
                     command.Parameters.AddWithValue("resource", (int)LockResource.UserEmail);
                     command.Parameters.AddWithValue("email", late.Email);
                     await command.ExecuteNonQueryAsync();
-                    await Assert.ThrowsAsync<RequestTimeoutException>(async () =>
-                    {
-                        await using var scope = provider.CreateAsyncScope();
-                        var client = scope.ServiceProvider.GetRequiredService<IRequestClient<RegisterUserRequested>>();
-                        await client.GetResponse<UserRegistered, UserFailure>(late);
-                    });
+                    await Assert.ThrowsAsync<RequestTimeoutException>(() =>
+                        client.GetResponse<RegisterUserSuccess, UserFailure>(
+                            late, timeout: RequestTimeout.After(s: 3)));
                     await transaction.CommitAsync();
                 }
-                Response<UserRegistered, UserFailure> retry;
-                await using (var scope = provider.CreateAsyncScope())
-                {
-                    var client = scope.ServiceProvider.GetRequiredService<IRequestClient<RegisterUserRequested>>();
-                    retry = await client.GetResponse<UserRegistered, UserFailure>(late);
-                }
+                var retry = await client.GetResponse<RegisterUserSuccess, UserFailure>(late);
                 Assert.True(retry.Is(out Response<UserFailure>? failure));
                 Assert.Equal("email_conflict", failure!.Message.Code);
                 Assert.Equal(1, await db.Set<UserEntity>().CountAsync(x => x.Email == late.Email));
 
                 // Damage only the database created by this test, to exercise a genuine DB fault.
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE users RENAME TO users_unavailable");
-                await using (var scope = provider.CreateAsyncScope())
-                {
-                    var reader = scope.ServiceProvider.GetRequiredService<IRequestClient<GetUserRequested>>();
-                    await Assert.ThrowsAsync<RequestFaultException>(() => reader.GetResponse<UserResult, UserFailure>(new(1)));
-                }
+                var reader = scope.ServiceProvider.GetRequiredService<IRequestClient<GetUserRequest>>();
+                await Assert.ThrowsAsync<RequestFaultException>(() => reader.GetResponse<UserSuccess, UserFailure>(new(1)));
             }
             finally { await bus.StopAsync(); }
         }

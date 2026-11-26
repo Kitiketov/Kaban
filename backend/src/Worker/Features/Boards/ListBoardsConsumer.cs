@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.List;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -16,7 +16,7 @@ public sealed class ListBoardsConsumer(KabanDatabaseContext db, ILogger<ListBoar
         var rows = await db.Boards.AsNoTracking().Where(x => x.ProjectId == request.ProjectId)
             .OrderBy(x => x.Id).Select(x => new BoardSummary(x.Id, x.ProjectId, x.Name))
             .ToListAsync(ct);
-        await context.RespondAsync(new BoardListResult(rows));
+        await context.RespondAsync(new ListBoardsSuccess(rows));
 
         logger.LogInformation("Returned {BoardCount} boards for project {ProjectId}", rows.Count, request.ProjectId);
     }

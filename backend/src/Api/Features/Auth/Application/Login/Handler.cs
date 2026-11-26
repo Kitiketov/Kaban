@@ -1,4 +1,5 @@
-using Contracts.Features.Users;
+using Contracts.Features.Users.Common;
+using Contracts.Features.Users.GetCredentials;
 using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Auth.Application.DTO;
 using Kaban.Api.Features.Auth.Infrastructure;
@@ -8,13 +9,13 @@ using MediatR;
 namespace Kaban.Api.Features.Auth.Application.Login;
 
 public sealed class LoginHandler(
-    IRequestClient<GetCredentialsRequested> client,
+    IRequestClient<GetCredentialsRequest> client,
     CredentialsService credentials,
     TokenService tokens) : IRequestHandler<LoginCommand, TokenPairDto>
 {
     public async Task<TokenPairDto> Handle(LoginCommand request, CancellationToken ct)
     {
-        var response = await client.GetResponse<CredentialsFound, UserFailure>(
+        var response = await client.GetResponse<GetCredentialsSuccess, UserFailure>(
             new(request.Email.Trim().ToLowerInvariant()), ct);
         if (response.Is(out Response<UserFailure>? _))
         {
@@ -22,7 +23,7 @@ public sealed class LoginHandler(
             throw new UserOperationException("invalid_credentials");
         }
 
-        var user = (response.Is(out Response<CredentialsFound>? success)
+        var user = (response.Is(out Response<GetCredentialsSuccess>? success)
             ? success.Message
             : throw new InvalidOperationException("Unexpected Worker response"));
         if (!credentials.Verify(request.Password, user.PasswordHash))

@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Delete;
 using MassTransit;
 using MediatR;
 
@@ -9,7 +9,7 @@ public sealed class DeleteBoardHandler(IRequestClient<DeleteBoardRequest> client
 {
     public async Task<bool> Handle(DeleteBoardCommand command, CancellationToken ct)
     {
-        var r = await client.GetResponse<BoardDeleted>(new DeleteBoardRequest(command.BoardId), ct);
+        var r = await client.GetResponse<DeleteBoardSuccess>(new DeleteBoardRequest(command.BoardId), ct);
         return r.Message.Deleted;
     }
 }

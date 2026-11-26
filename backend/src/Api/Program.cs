@@ -1,4 +1,3 @@
-using System.Threading.RateLimiting;
 using Kaban.Api.Common;
 using Kaban.Api.Common.Exceptions;
 using Kaban.Api.Features.Auth.Infrastructure;
@@ -63,12 +62,6 @@ builder.Services.AddKabanAuth(builder.Configuration);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
-        }));
 });
 builder.Services.AddHealthChecks();
 

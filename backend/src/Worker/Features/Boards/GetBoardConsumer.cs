@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Get;
 using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kaban.Worker.Features.Boards;
 
-public sealed class GetBoardConsumer(KabanDatabaseContext db, 
+public sealed class GetBoardConsumer(KabanDatabaseContext db,
     ILogger<GetBoardConsumer> logger)
     : IConsumer<GetBoardRequest>
 {
@@ -21,10 +21,20 @@ public sealed class GetBoardConsumer(KabanDatabaseContext db,
         if (board is null)
             throw new InvalidOperationException("Board not found.");
 
-        var columns = await db.BoardColumns.AsNoTracking().Where(x => x.BoardId == board.Id)
-            .OrderBy(x => x.BoardOrder).Select(x => new BoardColumnDetails(x.Id, x.ColumnName, x.BoardOrder, 
-               x.Tasks.Select(t => t.ToTaskSuccess()).ToList())).ToListAsync(ct);
-        await context.RespondAsync(new BoardDetails(board.Id, board.ProjectId, board.Name, columns));
+        var columns = await db.BoardColumns.AsNoTracking()
+            .Where(x => x.BoardId == board.Id)
+            .OrderBy(x => x.BoardOrder)
+            .Include(x => x.Tasks)
+            .ToListAsync(ct);
+
+        var details = columns.Select(column => new BoardColumnDetails(
+            column.Id,
+            column.ColumnName,
+            column.BoardOrder,
+            column.Tasks.Select(task => task.ToTaskSuccess()).ToList()))
+            .ToList();
+
+        await context.RespondAsync(new GetBoardSuccess(board.Id, board.ProjectId, board.Name, details));
 
         logger.LogInformation("Returned board {BoardId} with {ColumnCount} columns", board.Id, columns.Count);
     }
