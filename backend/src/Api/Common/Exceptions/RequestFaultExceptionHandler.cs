@@ -16,13 +16,9 @@ public class RequestFaultExceptionHandler(ILogger<RequestFaultExceptionHandler> 
         logger.LogError("Worker request fault for {Method} {Path}", httpContext.Request.Method,
             httpContext.Request.Path);
 
-        var result = Results.InternalServerError(new
-        {
-            error = "Request Fault",
-            message = requestFaultException.Message
-        });
-
-        await result.ExecuteAsync(httpContext);
+        await Results.Problem(
+            statusCode: StatusCodes.Status502BadGateway,
+            title: "Worker could not complete the request").ExecuteAsync(httpContext);
 
         return true;
     }

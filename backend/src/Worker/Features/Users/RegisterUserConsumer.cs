@@ -24,21 +24,31 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
         }
 
         var ct = context.CancellationToken;
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // Serialize registrations for the same normalized email across Worker instances.
-        await db.Database.AcquireResourceLockAsync(LockResource.UserEmail, request.Email, ct: ct);
-        if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
+        var emailExists = false;
+        UserRegistered? result = null;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            await transaction.RollbackAsync(ct);
+            // Serialize registrations for the same normalized email across Worker instances.
+            await db.Database.AcquireResourceLockAsync(LockResource.UserEmail, request.Email, ct: ct);
+            emailExists = await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct);
+            if (!emailExists)
+            {
+                var user = new UserEntity
+                    { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
+                db.Add(user);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                result = new UserRegistered(user.Id);
+            }
+        }
+
+        if (emailExists)
+        {
             await context.RespondAsync(new UserFailure("email_conflict"));
             return;
         }
 
-        var user = new UserEntity
-            { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
-        db.Add(user);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        await context.RespondAsync(new UserRegistered(user.Id));
+        var userRegistered = result ?? throw new InvalidOperationException("User registration result was not created.");
+        await context.RespondAsync(userRegistered);
     }
 }

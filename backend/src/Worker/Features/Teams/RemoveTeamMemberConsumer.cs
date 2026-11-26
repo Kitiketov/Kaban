@@ -21,47 +21,41 @@ public sealed class RemoveTeamMemberConsumer(
             return;
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
-
-        var teamExists = await db.Teams.AnyAsync(x => x.Id == request.TeamId, ct);
-        if (!teamExists)
+        string? failureCode = null;
+        TeamMemberRemoved? result = null;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("team_not_found"));
+            await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
+
+            failureCode = await access.EnsureTeamMemberAsync(request.TeamId, request.ActorId, ct);
+            if (failureCode is null)
+            {
+                var membership = await db.UserTeams
+                    .FirstOrDefaultAsync(x => x.TeamId == request.TeamId && x.UserId == request.UserId, ct);
+                if (membership is null)
+                    failureCode = "member_not_found";
+                else if (await db.UserTeams.CountAsync(x => x.TeamId == request.TeamId, ct) <= 1)
+                {
+                    failureCode = "last_member";
+                }
+                else
+                {
+                    db.Remove(membership);
+                    await db.SaveChangesAsync(ct);
+                    await transaction.CommitAsync(ct);
+                    result = new TeamMemberRemoved(request.TeamId, request.UserId);
+                }
+            }
+        }
+
+        if (failureCode is not null)
+        {
+            await context.RespondAsync(new TeamFailure(failureCode));
             return;
         }
 
-        var accessError = await access.EnsureMemberAsync(request.TeamId, request.ActorId, ct);
-        if (accessError is not null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure(accessError));
-            return;
-        }
-
-        var membership = await db.UserTeams
-            .FirstOrDefaultAsync(x => x.TeamId == request.TeamId && x.UserId == request.UserId, ct);
-        if (membership is null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("member_not_found"));
-            return;
-        }
-
-        var memberCount = await db.UserTeams.CountAsync(x => x.TeamId == request.TeamId, ct);
-        if (memberCount <= 1)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("last_member"));
-            return;
-        }
-
-        db.Remove(membership);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        await context.RespondAsync(new TeamMemberRemoved(request.TeamId, request.UserId));
+        var memberRemoved = result ?? throw new InvalidOperationException("Team member result was not created.");
+        await context.RespondAsync(memberRemoved);
         logger.LogInformation("Removed member {UserId} from team {TeamId}", request.UserId, request.TeamId);
     }
 }

@@ -32,21 +32,14 @@ public sealed class DeleteProjectConsumer(
             return;
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock({teamId.Value})", ct);
-
         var accessError = await access.EnsureMemberAsync(teamId.Value, request.ActorId, ct);
         if (accessError is not null)
         {
-            await transaction.RollbackAsync(ct);
             await context.RespondAsync(new ProjectFailure(accessError));
             return;
         }
 
         await db.Projects.Where(x => x.Id == request.ProjectId).ExecuteDeleteAsync(ct);
-        await transaction.CommitAsync(ct);
-
         await context.RespondAsync(new ProjectDeleted(request.ProjectId));
         logger.LogInformation("Deleted project {ProjectId} of team {TeamId}", request.ProjectId, teamId.Value);
     }
