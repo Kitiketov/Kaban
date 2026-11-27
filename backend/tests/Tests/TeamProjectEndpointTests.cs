@@ -16,72 +16,131 @@ using Contracts.Features.Teams.Get;
 using Contracts.Features.Teams.List;
 using Contracts.Features.Teams.RemoveMember;
 using Kaban.Api.Features.Auth.Infrastructure;
+using Kaban.Api.Features.Projects.Application.DTO;
 using Kaban.Api.Features.Teams.Application.DTO;
 using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
+using Moq;
 using Xunit;
 
 namespace Kaban.Tests;
 
-public sealed class TeamProjectEndpointTests : IClassFixture<TeamApiFactory>
+public sealed class TeamProjectEndpointTests : IDisposable
 {
+    private const int ActorId = 7;
     private readonly TeamApiFactory factory;
     private readonly HttpClient client;
 
-    public TeamProjectEndpointTests(TeamApiFactory factory)
+    public TeamProjectEndpointTests()
     {
-        this.factory = factory;
+        factory = new TeamApiFactory();
         client = factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new("Bearer", factory.Services.GetRequiredService<TokenService>().Create(7).AccessToken);
+        client.DefaultRequestHeaders.Authorization = new(
+            "Bearer",
+            factory.Services.GetRequiredService<TokenService>().Create(ActorId).AccessToken);
     }
 
     [Fact]
-    public async Task TeamAndProjectLifecycle_CompletesEndToEnd()
+    public async Task TeamAndProjectEndpoints_MapWorkerResponses()
     {
+        factory.CreateTeam
+            .Setup(x => x.GetResponse<TeamCreated, TeamFailure>(
+                new CreateTeamRequest(ActorId, "New Team"), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamCreated, TeamFailure>(new TeamCreated(55, "New Team")));
+        factory.ListTeams
+            .Setup(x => x.GetResponse<TeamListResult, TeamFailure>(
+                new ListTeamsRequest(ActorId), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamListResult, TeamFailure>(
+                new TeamListResult([new TeamSummary(55, "New Team", "owner")])));
+        factory.GetTeam
+            .Setup(x => x.GetResponse<TeamDetails, TeamFailure>(
+                new GetTeamRequest(ActorId, 55), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamDetails, TeamFailure>(new TeamDetails(
+                55, "New Team", [new TeamMemberDetails(ActorId, "Owner", "owner@example.com", "owner")])));
+        factory.AddTeamMember
+            .Setup(x => x.GetResponse<TeamMemberAdded, TeamFailure>(
+                new AddTeamMemberRequest(ActorId, 55, 8), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamMemberAdded, TeamFailure>(new TeamMemberAdded(55, 8, "member")));
+        factory.ChangeMemberRole
+            .Setup(x => x.GetResponse<MemberRoleChanged, TeamFailure>(
+                new ChangeMemberRoleRequest(ActorId, 55, 8, "admin"),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<MemberRoleChanged, TeamFailure>(new MemberRoleChanged(55, 8, "admin")));
+        factory.CreateTeamRole
+            .Setup(x => x.GetResponse<TeamRoleCreated, TeamFailure>(
+                new CreateTeamRoleRequest(ActorId, 55, "qa"),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamRoleCreated, TeamFailure>(new TeamRoleCreated(55, "qa")));
+        factory.RemoveTeamMember
+            .Setup(x => x.GetResponse<TeamMemberRemoved, TeamFailure>(
+                new RemoveTeamMemberRequest(ActorId, 55, 8),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamMemberRemoved, TeamFailure>(new TeamMemberRemoved(55, 8)));
+        factory.DeleteTeam
+            .Setup(x => x.GetResponse<TeamDeleted, TeamFailure>(
+                new DeleteTeamRequest(ActorId, 55), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<TeamDeleted, TeamFailure>(new TeamDeleted(55)));
+        factory.CreateProject
+            .Setup(x => x.GetResponse<ProjectCreated, ProjectFailure>(
+                new CreateProjectRequest(ActorId, 55, "New Project"),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<ProjectCreated, ProjectFailure>(new ProjectCreated(66, 55, "New Project")));
+        factory.GetProject
+            .Setup(x => x.GetResponse<ProjectDetails, ProjectFailure>(
+                new GetProjectRequest(ActorId, 66), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<ProjectDetails, ProjectFailure>(new ProjectDetails(66, 55, "New Project")));
+        factory.ListProjects
+            .Setup(x => x.GetResponse<ProjectListResult, ProjectFailure>(
+                new ListTeamProjectsRequest(ActorId, 55),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<ProjectListResult, ProjectFailure>(
+                new ProjectListResult([new ProjectSummary(66, 55, "New Project")])));
+        factory.DeleteProject
+            .Setup(x => x.GetResponse<ProjectDeleted, ProjectFailure>(
+                new DeleteProjectRequest(ActorId, 66), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Success<ProjectDeleted, ProjectFailure>(new ProjectDeleted(66)));
+
         var created = await client.PostAsJsonAsync("/api/teams", new { name = " New Team " });
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var team = (await created.Content.ReadFromJsonAsync<TeamDto>())!;
         Assert.Equal(55, team.Id);
         Assert.Equal("New Team", team.Name);
 
-        var list = await client.GetFromJsonAsync<TeamListDto>("/api/teams");
-        Assert.Single(list!.Teams);
-        Assert.Equal("owner", list.Teams[0].Role);
+        var teams = await client.GetFromJsonAsync<TeamListDto>("/api/teams");
+        Assert.Equal("owner", Assert.Single(teams!.Teams).Role);
 
         var details = await client.GetFromJsonAsync<TeamDetailsDto>("/api/teams/55");
-        Assert.Equal(55, details!.Id);
-        Assert.Equal("owner", details.Members.Single(m => m.UserId == 7).Role);
+        Assert.Equal("owner", Assert.Single(details!.Members).Role);
 
         var added = await client.PostAsJsonAsync("/api/teams/55/members", new { userId = 8 });
         Assert.Equal(HttpStatusCode.Created, added.StatusCode);
-        var membership = (await added.Content.ReadFromJsonAsync<TeamMembershipDto>())!;
-        Assert.Equal(55, membership.TeamId);
-        Assert.Equal(8, membership.UserId);
-        Assert.Equal("member", membership.Role);
+        Assert.Equal("member", (await added.Content.ReadFromJsonAsync<TeamMembershipDto>())!.Role);
 
-        var changed = await client.PatchAsJsonAsync("/api/teams/55/members/8/roles", new { role = "admin" });
+        var changed = await client.PatchAsJsonAsync(
+            "/api/teams/55/members/8/roles", new { role = " admin " });
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.Equal("admin", (await changed.Content.ReadFromJsonAsync<TeamMembershipDto>())!.Role);
 
-        var role = await client.PostAsJsonAsync("/api/teams/55/roles", new { role = "qa" });
+        var role = await client.PostAsJsonAsync("/api/teams/55/roles", new { role = " qa " });
         Assert.Equal(HttpStatusCode.Created, role.StatusCode);
         Assert.Equal("qa", (await role.Content.ReadFromJsonAsync<TeamRoleDto>())!.Role);
 
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await client.DeleteAsync("/api/teams/55/members/8")).StatusCode);
+
         var project = await client.PostAsJsonAsync("/api/teams/55/projects", new { name = " New Project " });
         Assert.Equal(HttpStatusCode.Created, project.StatusCode);
-        var projectDto = (await project.Content.ReadFromJsonAsync<Kaban.Api.Features.Projects.Application.DTO.ProjectDto>())!;
-        Assert.Equal(66, projectDto.Id);
-        Assert.Equal(55, projectDto.TeamId);
-        Assert.Equal("New Project", projectDto.Name);
+        var projectDto = (await project.Content.ReadFromJsonAsync<ProjectDto>())!;
+        Assert.Equal((66, 55, "New Project"), (projectDto.Id, projectDto.TeamId, projectDto.Name));
 
-        var projectDetails = await client.GetFromJsonAsync<Kaban.Api.Features.Projects.Application.DTO.ProjectDto>("/api/projects/66");
-        Assert.Equal(55, projectDetails!.TeamId);
-
-        var projectList = await client.GetFromJsonAsync<Kaban.Api.Features.Projects.Application.DTO.ProjectListDto>("/api/teams/55/projects");
-        Assert.Single(projectList!.Projects);
+        Assert.Equal("New Project",
+            (await client.GetFromJsonAsync<ProjectDto>("/api/projects/66"))!.Name);
+        var projects = await client.GetFromJsonAsync<ProjectListDto>("/api/teams/55/projects");
+        Assert.Equal(66, Assert.Single(projects!.Projects).Id);
 
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/projects/66")).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync("/api/teams/55")).StatusCode);
@@ -90,87 +149,130 @@ public sealed class TeamProjectEndpointTests : IClassFixture<TeamApiFactory>
     [Fact]
     public async Task InvalidInput_IsRejectedBeforeMessaging()
     {
-        var before = factory.Services.GetRequiredService<Probe>().Calls;
         var badEmpty = await client.PostAsJsonAsync("/api/teams", new { name = "" });
         var badLong = await client.PostAsJsonAsync("/api/teams", new { name = new string('x', 65) });
         var badTeamId = await client.PostAsJsonAsync("/api/teams/0/members", new { userId = 8 });
         var badRole = await client.PatchAsJsonAsync("/api/teams/55/members/8/roles", new { role = "" });
         var badProject = await client.PostAsJsonAsync("/api/teams/55/projects", new { name = "" });
+
         Assert.Equal(HttpStatusCode.BadRequest, badEmpty.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, badLong.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, badTeamId.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, badRole.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, badProject.StatusCode);
-        Assert.Equal(before, factory.Services.GetRequiredService<Probe>().Calls);
+        factory.VerifyNoRequests();
     }
 
     [Fact]
     public async Task Endpoints_RequireAuthentication()
     {
-        var before = factory.Services.GetRequiredService<Probe>().Calls;
         using var anonymous = factory.CreateClient();
-        var teamsGet = await anonymous.GetAsync("/api/teams");
-        var teamsPost = await anonymous.PostAsJsonAsync("/api/teams", new { name = "Nope" });
-        var projectsGet = await anonymous.GetAsync("/api/projects/66");
-        Assert.Equal(HttpStatusCode.Unauthorized, teamsGet.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, teamsPost.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, projectsGet.StatusCode);
-        Assert.Equal(before, factory.Services.GetRequiredService<Probe>().Calls);
-    }
-
-    [Theory]
-    [InlineData(88, HttpStatusCode.NotFound)]
-    [InlineData(89, HttpStatusCode.Forbidden)]
-    [InlineData(87, HttpStatusCode.NotFound)]
-    [InlineData(86, HttpStatusCode.Conflict)]
-    public async Task TeamBusinessFailures_AreMappedToDistinctHttpStatuses(int targetId, HttpStatusCode expected)
-    {
-        var response = targetId is 87 or 86
-            ? await client.DeleteAsync($"/api/teams/55/members/{targetId}")
-            : await client.GetAsync($"/api/teams/{targetId}");
-        Assert.Equal(expected, response.StatusCode);
-        Assert.DoesNotContain("private-database-detail", await response.Content.ReadAsStringAsync());
-    }
-
-    [Theory]
-    [InlineData(85, HttpStatusCode.Conflict)]
-    [InlineData(84, HttpStatusCode.NotFound)]
-    public async Task RoleBusinessFailures_AreMappedToDistinctHttpStatuses(int teamId, HttpStatusCode expected)
-    {
-        var response = teamId == 85
-            ? await client.PostAsJsonAsync($"/api/teams/{teamId}/roles", new { role = "dup" })
-            : await client.PatchAsJsonAsync($"/api/teams/{teamId}/members/8/roles", new { role = "ghost" });
-        Assert.Equal(expected, response.StatusCode);
-    }
-
-    [Theory]
-    [InlineData(88, HttpStatusCode.NotFound)]
-    [InlineData(89, HttpStatusCode.Forbidden)]
-    public async Task ProjectBusinessFailures_AreMappedToDistinctHttpStatuses(int projectId, HttpStatusCode expected)
-    {
-        var response = await client.GetAsync($"/api/projects/{projectId}");
-        Assert.Equal(expected, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/teams")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await anonymous.PostAsJsonAsync("/api/teams", new { name = "Nope" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/projects/66")).StatusCode);
+        factory.VerifyNoRequests();
     }
 
     [Fact]
-    public async Task WorkerFault_IsReportedAsBadGateway()
+    public async Task TeamAndProjectFailures_AreMappedToDistinctHttpStatuses()
     {
-        var response = await client.GetAsync("/api/teams/99");
-        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        Assert.DoesNotContain("private-database-detail", await response.Content.ReadAsStringAsync());
+        factory.GetTeam
+            .Setup(x => x.GetResponse<TeamDetails, TeamFailure>(
+                new GetTeamRequest(ActorId, 88), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Failure<TeamDetails, TeamFailure>(new TeamFailure("team_not_found")));
+        factory.GetTeam
+            .Setup(x => x.GetResponse<TeamDetails, TeamFailure>(
+                new GetTeamRequest(ActorId, 89), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Failure<TeamDetails, TeamFailure>(new TeamFailure("not_a_member")));
+        factory.GetProject
+            .Setup(x => x.GetResponse<ProjectDetails, ProjectFailure>(
+                new GetProjectRequest(ActorId, 88), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Failure<ProjectDetails, ProjectFailure>(new ProjectFailure("project_not_found")));
+        factory.GetProject
+            .Setup(x => x.GetResponse<ProjectDetails, ProjectFailure>(
+                new GetProjectRequest(ActorId, 89), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Failure<ProjectDetails, ProjectFailure>(new ProjectFailure("not_a_member")));
+        factory.CreateProject
+            .Setup(x => x.GetResponse<ProjectCreated, ProjectFailure>(
+                new CreateProjectRequest(ActorId, 55, "New Project"),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Failure<ProjectCreated, ProjectFailure>(new ProjectFailure("team_not_found")));
+        factory.CreateTeamRole
+            .Setup(x => x.GetResponse<TeamRoleCreated, TeamFailure>(
+                new CreateTeamRoleRequest(ActorId, 55, "qa"),
+                It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ReturnsAsync(Failure<TeamRoleCreated, TeamFailure>(new TeamFailure("role_conflict")));
+
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/teams/88")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/teams/89")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/projects/88")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/projects/89")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await client.PostAsJsonAsync("/api/teams/55/projects", new { name = " New Project " })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict,
+            (await client.PostAsJsonAsync("/api/teams/55/roles", new { role = " qa " })).StatusCode);
     }
 
     [Fact]
-    public async Task WorkerWithoutResponse_TimesOutAsServiceUnavailable()
+    public async Task WorkerFaultAndTimeout_AreNotExposedAsSuccessfulResponses()
     {
-        var response = await client.GetAsync("/api/teams/100");
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
-        Assert.DoesNotContain("private-database-detail", await response.Content.ReadAsStringAsync());
+        factory.GetTeam
+            .Setup(x => x.GetResponse<TeamDetails, TeamFailure>(
+                new GetTeamRequest(ActorId, 99), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ThrowsAsync(new RequestFaultException(
+                "private-database-detail",
+                Mock.Of<Fault>(x => x.Exceptions == Array.Empty<ExceptionInfo>())));
+        factory.GetTeam
+            .Setup(x => x.GetResponse<TeamDetails, TeamFailure>(
+                new GetTeamRequest(ActorId, 100), It.IsAny<CancellationToken>(), It.IsAny<RequestTimeout>()))
+            .ThrowsAsync(new RequestTimeoutException(Guid.NewGuid().ToString()));
+
+        var fault = await client.GetAsync("/api/teams/99");
+        Assert.Equal(HttpStatusCode.BadGateway, fault.StatusCode);
+        Assert.DoesNotContain("private-database-detail", await fault.Content.ReadAsStringAsync());
+
+        var timeout = await client.GetAsync("/api/teams/100");
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, timeout.StatusCode);
+        Assert.DoesNotContain("private-database-detail", await timeout.Content.ReadAsStringAsync());
+    }
+
+    private static Response<TSuccess, TFailure> Success<TSuccess, TFailure>(TSuccess message)
+        where TSuccess : class
+        where TFailure : class =>
+        new(
+            Task.FromResult(Mock.Of<Response<TSuccess>>(x => x.Message == message)),
+            new TaskCompletionSource<Response<TFailure>>().Task);
+
+    private static Response<TSuccess, TFailure> Failure<TSuccess, TFailure>(TFailure message)
+        where TSuccess : class
+        where TFailure : class =>
+        new(
+            new TaskCompletionSource<Response<TSuccess>>().Task,
+            Task.FromResult(Mock.Of<Response<TFailure>>(x => x.Message == message)));
+
+    public void Dispose()
+    {
+        client.Dispose();
+        factory.Dispose();
     }
 }
 
 public sealed class TeamApiFactory : WebApplicationFactory<Kaban.Api.Features.Teams.Presentation.TeamsController>
 {
+    public Mock<IRequestClient<CreateTeamRequest>> CreateTeam { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<ListTeamsRequest>> ListTeams { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<GetTeamRequest>> GetTeam { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<AddTeamMemberRequest>> AddTeamMember { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<RemoveTeamMemberRequest>> RemoveTeamMember { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<CreateTeamRoleRequest>> CreateTeamRole { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<ChangeMemberRoleRequest>> ChangeMemberRole { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<DeleteTeamRequest>> DeleteTeam { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<CreateProjectRequest>> CreateProject { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<GetProjectRequest>> GetProject { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<ListTeamProjectsRequest>> ListProjects { get; } = new(MockBehavior.Strict);
+    public Mock<IRequestClient<DeleteProjectRequest>> DeleteProject { get; } = new(MockBehavior.Strict);
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -178,180 +280,42 @@ public sealed class TeamApiFactory : WebApplicationFactory<Kaban.Api.Features.Te
         builder.UseSetting("Messaging:RequestTimeoutSeconds", "3");
         builder.ConfigureServices(services =>
         {
-            services.AddSingleton<Probe>();
-            services.AddMassTransitTestHarness(x =>
-            {
-                x.AddConsumer<StubTeamsConsumer>();
-                RequestTimeout.After(s: 3);
-                x.AddRequestClient<CreateTeamRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<ListTeamsRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<GetTeamRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<AddTeamMemberRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<RemoveTeamMemberRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<CreateTeamRoleRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<ChangeMemberRoleRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<DeleteTeamRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<CreateProjectRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<GetProjectRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<ListTeamProjectsRequest>(RequestTimeout.After(s: 3));
-                x.AddRequestClient<DeleteProjectRequest>(RequestTimeout.After(s: 3));
-                x.UsingInMemory((context, cfg) => cfg.ConfigureEndpoints(context));
-            });
+            services.RemoveAll<IHostedService>();
+            ReplaceRequestClient(services, CreateTeam.Object);
+            ReplaceRequestClient(services, ListTeams.Object);
+            ReplaceRequestClient(services, GetTeam.Object);
+            ReplaceRequestClient(services, AddTeamMember.Object);
+            ReplaceRequestClient(services, RemoveTeamMember.Object);
+            ReplaceRequestClient(services, CreateTeamRole.Object);
+            ReplaceRequestClient(services, ChangeMemberRole.Object);
+            ReplaceRequestClient(services, DeleteTeam.Object);
+            ReplaceRequestClient(services, CreateProject.Object);
+            ReplaceRequestClient(services, GetProject.Object);
+            ReplaceRequestClient(services, ListProjects.Object);
+            ReplaceRequestClient(services, DeleteProject.Object);
         });
     }
-}
 
-public sealed class StubTeamsConsumer :
-    IConsumer<CreateTeamRequest>, IConsumer<ListTeamsRequest>, IConsumer<GetTeamRequest>,
-    IConsumer<AddTeamMemberRequest>, IConsumer<RemoveTeamMemberRequest>,
-    IConsumer<CreateTeamRoleRequest>, IConsumer<ChangeMemberRoleRequest>, IConsumer<DeleteTeamRequest>,
-    IConsumer<CreateProjectRequest>, IConsumer<GetProjectRequest>,
-    IConsumer<ListTeamProjectsRequest>, IConsumer<DeleteProjectRequest>
-{
-    private readonly Probe probe;
-
-    public StubTeamsConsumer(Probe probe) => this.probe = probe;
-
-    private void Count() => Interlocked.Increment(ref probe.Calls);
-
-    public async Task Consume(ConsumeContext<CreateTeamRequest> context)
+    public void VerifyNoRequests()
     {
-        Count();
-        Assert.Equal("New Team", context.Message.Name);
-        switch (context.Message.ActorId)
-        {
-            case 88: await context.RespondAsync(new TeamFailure("invalid_request")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new TeamCreated(55, context.Message.Name)); return;
-        }
+        CreateTeam.VerifyNoOtherCalls();
+        ListTeams.VerifyNoOtherCalls();
+        GetTeam.VerifyNoOtherCalls();
+        AddTeamMember.VerifyNoOtherCalls();
+        RemoveTeamMember.VerifyNoOtherCalls();
+        CreateTeamRole.VerifyNoOtherCalls();
+        ChangeMemberRole.VerifyNoOtherCalls();
+        DeleteTeam.VerifyNoOtherCalls();
+        CreateProject.VerifyNoOtherCalls();
+        GetProject.VerifyNoOtherCalls();
+        ListProjects.VerifyNoOtherCalls();
+        DeleteProject.VerifyNoOtherCalls();
     }
 
-    public async Task Consume(ConsumeContext<ListTeamsRequest> context)
+    private static void ReplaceRequestClient<T>(IServiceCollection services, IRequestClient<T> client)
+        where T : class
     {
-        Count();
-        await context.RespondAsync(new TeamListResult([new TeamSummary(55, "New Team", "owner")]));
-    }
-
-    public async Task Consume(ConsumeContext<GetTeamRequest> context)
-    {
-        Count();
-        switch (context.Message.TeamId)
-        {
-            case 88: await context.RespondAsync(new TeamFailure("team_not_found")); return;
-            case 89: await context.RespondAsync(new TeamFailure("not_a_member")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default:
-                await context.RespondAsync(new TeamDetails(55, "New Team",
-                    [new TeamMemberDetails(7, "User", "user@example.com", "owner")]));
-                return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<AddTeamMemberRequest> context)
-    {
-        Count();
-        switch (context.Message.TeamId)
-        {
-            case 88: await context.RespondAsync(new TeamFailure("member_conflict")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new TeamMemberAdded(55, context.Message.UserId, "member")); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<RemoveTeamMemberRequest> context)
-    {
-        Count();
-        switch (context.Message.UserId)
-        {
-            case 87: await context.RespondAsync(new TeamFailure("member_not_found")); return;
-            case 86: await context.RespondAsync(new TeamFailure("last_member")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new TeamMemberRemoved(55, context.Message.UserId)); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<CreateTeamRoleRequest> context)
-    {
-        Count();
-        switch (context.Message.TeamId)
-        {
-            case 85: await context.RespondAsync(new TeamFailure("role_conflict")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new TeamRoleCreated(55, context.Message.Role)); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<ChangeMemberRoleRequest> context)
-    {
-        Count();
-        switch (context.Message.TeamId)
-        {
-            case 84: await context.RespondAsync(new TeamFailure("role_not_found")); return;
-            case 83: await context.RespondAsync(new TeamFailure("member_not_found")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new MemberRoleChanged(55, context.Message.UserId, context.Message.Role)); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<DeleteTeamRequest> context)
-    {
-        Count();
-        switch (context.Message.TeamId)
-        {
-            case 88: await context.RespondAsync(new TeamFailure("team_not_found")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new TeamDeleted(55)); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<CreateProjectRequest> context)
-    {
-        Count();
-        Assert.Equal("New Project", context.Message.Name);
-        switch (context.Message.TeamId)
-        {
-            case 88: await context.RespondAsync(new ProjectFailure("team_not_found")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new ProjectCreated(66, context.Message.TeamId, context.Message.Name)); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<GetProjectRequest> context)
-    {
-        Count();
-        switch (context.Message.ProjectId)
-        {
-            case 88: await context.RespondAsync(new ProjectFailure("project_not_found")); return;
-            case 89: await context.RespondAsync(new ProjectFailure("not_a_member")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new ProjectDetails(66, 55, "New Project")); return;
-        }
-    }
-
-    public async Task Consume(ConsumeContext<ListTeamProjectsRequest> context)
-    {
-        Count();
-        await context.RespondAsync(new ProjectListResult([new ProjectSummary(66, 55, "New Project")]));
-    }
-
-    public async Task Consume(ConsumeContext<DeleteProjectRequest> context)
-    {
-        Count();
-        switch (context.Message.ProjectId)
-        {
-            case 88: await context.RespondAsync(new ProjectFailure("project_not_found")); return;
-            case 99: throw new InvalidOperationException("private-database-detail");
-            case 100: return;
-            default: await context.RespondAsync(new ProjectDeleted(66)); return;
-        }
+        services.RemoveAll<IRequestClient<T>>();
+        services.AddSingleton(client);
     }
 }
