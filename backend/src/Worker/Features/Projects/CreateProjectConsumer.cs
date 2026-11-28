@@ -4,7 +4,6 @@ using Kaban.Worker.Features.Projects.Domain;
 using Kaban.Worker.Features.Teams;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
-using Microsoft.EntityFrameworkCore;
 using ProjectEntity = Kaban.Worker.Features.Projects.Domain.Projects;
 
 namespace Kaban.Worker.Features.Projects;
