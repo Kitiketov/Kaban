@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.DeleteColumn;
 using MassTransit;
 using MediatR;
 
@@ -9,7 +9,7 @@ public sealed class DeleteBoardColumnHandler(
 {
     public async Task<bool> Handle(DeleteBoardColumnCommand command, CancellationToken ct)
     {
-        var r = await client.GetResponse<BoardColumnDeleted>(new DeleteBoardColumnRequest(command.ColumnId), ct);
+        var r = await client.GetResponse<DeleteBoardColumnSuccess>(new DeleteBoardColumnRequest(command.ColumnId), ct);
         return r.Message.Deleted;
     }
 }

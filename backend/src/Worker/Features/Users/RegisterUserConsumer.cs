@@ -1,5 +1,6 @@
 using System.Net.Mail;
-using Contracts.Features.Users;
+using Contracts.Features.Users.Common;
+using Contracts.Features.Users.Register;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -7,9 +8,9 @@ using UserEntity = Kaban.Worker.Features.Users.Domain.Users;
 
 namespace Kaban.Worker.Features.Users;
 
-public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<RegisterUserRequested>
+public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<RegisterUserRequest>
 {
-    public async Task Consume(ConsumeContext<RegisterUserRequested> context)
+    public async Task Consume(ConsumeContext<RegisterUserRequest> context)
     {
         var request = context.Message;
         if (
@@ -24,21 +25,23 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
         }
 
         var ct = context.CancellationToken;
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        // Serialize registrations for the same normalized email across Worker instances.
-        await db.Database.AcquireResourceLockAsync(LockResource.UserEmail, request.Email, ct: ct);
-        if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new UserFailure("email_conflict"));
-            return;
-        }
-
         var user = new UserEntity
             { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
-        db.Add(user);
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-        await context.RespondAsync(new UserRegistered(user.Id));
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
+        {
+            // Serialize registrations for the same normalized email across Worker instances.
+            await db.Database.AcquireResourceLockAsync(LockResource.UserEmail, request.Email, ct: ct);
+            if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
+            {
+                await context.RespondAsync(new UserFailure("email_conflict"));
+                return;
+            }
+
+            db.Add(user);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        await context.RespondAsync(new RegisterUserSuccess(user.Id));
     }
 }

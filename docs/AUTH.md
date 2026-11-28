@@ -22,13 +22,12 @@ Worker/EF Core/PostgreSQL → RespondAsync → API/HTTP. Новые Auth/Users �
 После merge origin/main (7d9c04e) старый Weather удалён; сохранены Boards/Tasks и OpenTelemetry.
 
 По прямому решению пользователя пароль хешируется и проверяется в API; Worker хранит хеш.
-Для этого внутренние RegisterUserRequested/CredentialsFound передают только солёный хеш:
+Для этого внутренние RegisterUserRequest/GetCredentialsSuccess передают только солёный хеш:
 это согласованное исключение к общей формулировке «без секретов» в инструкциях.
 Исходный пароль и JWT в MQ не передаются. Хеши не возвращаются в HTTP, не логируются;
 доступ к очередям, replies, _error и резервным копиям брокера должен быть ограничен внутренними сервисами.
 
-За основу HTTP auth взят [UnitHack](https://github.com/prlzrakk/UnitHack/tree/5b5d96499edc41ca25e2de57b122db70b537569a/Infrastructure/Security):
-Bearer refresh без тела, claim типа токена, JWT в API. Здесь используется стандартный ASP.NET Identity
+Используется стандартный ASP.NET Identity
 PasswordHasher (PBKDF2, 210000 итераций), а не BCrypt из примера.
 JWT HS256 имеет issuer/audience, обязательный срок, user_id, token_type и jti.
 Обычные ручки принимают только access, refresh — только refresh.
@@ -102,6 +101,3 @@ WorkerIntegrationTests требуют KABAN_TEST_POSTGRES (подключени�
 тайм-аут под DB lock с поздним успехом и повтором, настоящий DB fault.
 Без обеих переменных он явно пропускается. Полный запуск отдельных процессов API + Worker +
 RabbitMQ + PostgreSQL дополнительно обязателен перед выпуском.
-
-В текущей среде Docker Desktop падает при инициализации dockerInference, поэтому внешняя
-интеграция пока не подтверждена.

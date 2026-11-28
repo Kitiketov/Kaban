@@ -1,5 +1,5 @@
 using System.Globalization;
-using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -12,12 +12,11 @@ public static class AuthRegistration
 
     public static IServiceCollection AddKabanAuth(this IServiceCollection services, IConfiguration configuration)
     {
-        var settings = configuration.GetSection("Auth").Get<AuthOptions>() ?? new();
-        if (Encoding.UTF8.GetByteCount(settings.SigningKey) < 32 ||
-            string.IsNullOrWhiteSpace(settings.Issuer) || string.IsNullOrWhiteSpace(settings.Audience) ||
-            settings.AccessMinutes is < 1 or > 60 || settings.RefreshDays is < 1 or > 30)
-            throw new InvalidOperationException(
-                "Configure Auth:SigningKey (at least 32 bytes), issuer, audience and finite token lifetimes.");
+        var section = configuration.GetSection("Auth");
+        var settings = new AuthOptions(
+            section["SigningKey"], section["Issuer"], section["Audience"],
+            section.GetValue<int?>("AccessMinutes") ?? 15,
+            section.GetValue<int?>("RefreshDays") ?? 7);
         services.AddSingleton(settings);
         services.AddSingleton<TokenService>();
         services.AddSingleton<PasswordHasher<object>>(_ => new PasswordHasher<object>(
@@ -32,6 +31,15 @@ public static class AuthRegistration
         {
             options.DefaultPolicy = Policy("access");
             options.AddPolicy(RefreshPolicy, Policy("refresh"));
+        });
+        services.AddRateLimiter(options =>
+        {
+            options.AddPolicy("auth", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+                }));
         });
         return services;
     }

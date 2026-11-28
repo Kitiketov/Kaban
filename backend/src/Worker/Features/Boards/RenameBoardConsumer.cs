@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Rename;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +20,7 @@ public sealed class RenameBoardConsumer(KabanDatabaseContext db, ILogger<RenameB
 
         board.Name = request.Name;
         await db.SaveChangesAsync(ct);
-        await context.RespondAsync(new BoardRenamed(board.Id, board.ProjectId, board.Name));
+        await context.RespondAsync(new RenameBoardSuccess(board.Id, board.ProjectId, board.Name));
 
         logger.LogInformation("Renamed board {BoardId} for project {ProjectId}", board.Id, board.ProjectId);
     }

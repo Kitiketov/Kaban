@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.Delete;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -19,7 +19,7 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
         var board = await db.Boards.FirstOrDefaultAsync(x => x.Id == request.BoardId, ct);
         if (board is null)
         {
-            await context.RespondAsync(new BoardDeleted(false));
+            await context.RespondAsync(new DeleteBoardSuccess(false));
             logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, false);
             return;
         }
@@ -28,7 +28,7 @@ public sealed class DeleteBoardConsumer(KabanDatabaseContext db, ILogger<DeleteB
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
 
-        await context.RespondAsync(new BoardDeleted(true));
+        await context.RespondAsync(new DeleteBoardSuccess(true));
 
         logger.LogInformation("Delete board result for {BoardId}: {Deleted}", request.BoardId, true);
     }

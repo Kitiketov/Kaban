@@ -1,4 +1,4 @@
-using Contracts.Features.Boards;
+using Contracts.Features.Boards.AddColumn;
 using Kaban.Worker.Infrastructure.Database;
 using Kaban.Worker.Features.Boards.Domain;
 using MassTransit;
@@ -36,7 +36,7 @@ public sealed class AddBoardColumnConsumer(KabanDatabaseContext db, ILogger<AddB
         await tx.CommitAsync(ct);
 
         await context.RespondAsync(
-            new BoardColumnAdded(column.Id, column.BoardId, column.ColumnName, column.BoardOrder));
+            new AddBoardColumnSuccess(column.Id, column.BoardId, column.ColumnName, column.BoardOrder));
 
         logger.LogInformation("Added column {ColumnId} to board {BoardId} at order {Order}", column.Id,
             column.BoardId, order);

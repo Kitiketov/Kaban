@@ -1,4 +1,5 @@
-using Contracts.Features.Users;
+using Contracts.Features.Users.Common;
+using Contracts.Features.Users.Get;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -6,12 +7,12 @@ using UserEntity = Kaban.Worker.Features.Users.Domain.Users;
 
 namespace Kaban.Worker.Features.Users;
 
-public sealed class GetUserConsumer(KabanDatabaseContext db) : IConsumer<GetUserRequested>
+public sealed class GetUserConsumer(KabanDatabaseContext db) : IConsumer<GetUserRequest>
 {
-    public async Task Consume(ConsumeContext<GetUserRequested> context)
+    public async Task Consume(ConsumeContext<GetUserRequest> context)
     {
         var user = await db.Set<UserEntity>().AsNoTracking().Where(x => x.Id == context.Message.UserId)
-            .Select(x => new UserResult(x.Id, x.Name, x.Email)).SingleOrDefaultAsync(context.CancellationToken);
+            .Select(x => new UserSuccess(x.Id, x.Name, x.Email)).SingleOrDefaultAsync(context.CancellationToken);
         if (user is null)
             await context.RespondAsync(new UserFailure("not_found"));
         else await context.RespondAsync(user);
