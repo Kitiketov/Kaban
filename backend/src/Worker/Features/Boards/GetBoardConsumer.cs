@@ -31,7 +31,7 @@ public sealed class GetBoardConsumer(KabanDatabaseContext db,
             column.Id,
             column.ColumnName,
             column.BoardOrder,
-            column.Tasks.Select(task => TaskService.ToTaskSuccess(task)).ToList()))
+            [.. column.Tasks.Select(task => task.ToTaskSuccess())]))
             .ToList();
 
         await context.RespondAsync(new GetBoardSuccess(board.Id, board.ProjectId, board.Name, details));
