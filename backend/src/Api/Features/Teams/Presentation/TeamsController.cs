@@ -24,7 +24,7 @@ public sealed class TeamsController(IMediator mediator) : ControllerBase
         Ok(await mediator.Send(new ListTeamsQuery(ActorId), ct));
 
     [HttpGet("{teamId:int}")]
-    public async Task<IActionResult> Get(int teamId, CancellationToken ct) => 
+    public async Task<IActionResult> Get(int teamId, CancellationToken ct) =>
         Ok(await mediator.Send(new GetTeamQuery(ActorId, teamId), ct));
 
     [HttpPost]

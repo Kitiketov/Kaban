@@ -5,6 +5,7 @@ using Kaban.Api.Features.Auth.Infrastructure;
 using MassTransit;
 using MediatR;
 namespace Kaban.Api.Features.Users.Application.Register;
+
 public sealed class RegisterUserHandler(IRequestClient<RegisterUserRequest> client, CredentialsService credentials)
     : IRequestHandler<RegisterUserCommand>
 {

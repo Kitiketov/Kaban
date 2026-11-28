@@ -25,7 +25,7 @@ public sealed class CreateTeamConsumer(KabanDatabaseContext db, ILogger<CreateTe
         var memberRole = new Roles { RoleName = TeamRoles.Member, TeamId = team.Id, Team = team };
         db.AddRange(team, ownerRole, memberRole);
         db.Add(new UserTeams
-            { UserId = request.ActorId, TeamId = team.Id, Team = team, RoleId = ownerRole.Id, Role = ownerRole });
+        { UserId = request.ActorId, TeamId = team.Id, Team = team, RoleId = ownerRole.Id, Role = ownerRole });
         await db.SaveChangesAsync(ct);
 
         await context.RespondAsync(new TeamCreated(team.Id, team.TeamName));

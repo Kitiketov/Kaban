@@ -38,7 +38,9 @@ public static class AuthRegistration
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions
                 {
-                    PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0
+                    PermitLimit = 20,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0
                 }));
         });
         return services;

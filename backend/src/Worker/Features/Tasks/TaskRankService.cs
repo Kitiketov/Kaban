@@ -35,9 +35,9 @@ public sealed class TaskRankService(KabanDatabaseContext db)
 
         if (prevTaskId.HasValue)
         {
-            var prev = await db.Tasks.AsNoTracking()                                                                                                                                     
-                .Where(t => t.Id == prevTaskId.Value)                                                                                                                                    
-                .Select(t => new { t.BoardColumnId, t.TaskRank })                                                                                                                        
+            var prev = await db.Tasks.AsNoTracking()
+                .Where(t => t.Id == prevTaskId.Value)
+                .Select(t => new { t.BoardColumnId, t.TaskRank })
                 .FirstOrDefaultAsync(ct);
             if (prev is null)
                 return new TaskNotFound(prevTaskId.Value);
@@ -49,12 +49,12 @@ public sealed class TaskRankService(KabanDatabaseContext db)
         }
 
         if (!nextTaskId.HasValue) return CalculateRank(prevRank, nextRank);
-        
-        var next = await db.Tasks.AsNoTracking()                                                                                                                                     
-            .Where(t => t.Id == nextTaskId.Value)                                                                                                                                    
-            .Select(t => new { t.BoardColumnId, t.TaskRank })                                                                                                                        
+
+        var next = await db.Tasks.AsNoTracking()
+            .Where(t => t.Id == nextTaskId.Value)
+            .Select(t => new { t.BoardColumnId, t.TaskRank })
             .FirstOrDefaultAsync(ct);
-        
+
         if (next is null)
             return new TaskNotFound(nextTaskId.Value);
 

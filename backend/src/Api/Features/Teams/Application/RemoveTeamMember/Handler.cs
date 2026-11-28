@@ -13,7 +13,7 @@ public sealed class RemoveTeamMemberHandler(IRequestClient<RemoveTeamMemberReque
     {
         var response = await client.GetResponse<TeamMemberRemoved, TeamFailure>(
             new RemoveTeamMemberRequest(command.ActorId, command.TeamId, command.UserId), ct);
-        if (response.Is(out Response<TeamFailure>? failure)) 
+        if (response.Is(out Response<TeamFailure>? failure))
             throw new TeamOperationException(failure.Message.Code);
     }
 }

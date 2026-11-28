@@ -1,8 +1,8 @@
 ﻿using Contracts.Features.Tasks.Common;
 using Contracts.Features.Tasks.Delete;
+using Kaban.Api.Features.Tasks.Application.Common;
 using MassTransit;
 using MediatR;
-using Kaban.Api.Features.Tasks.Application.Common;
 
 namespace Kaban.Api.Features.Tasks.Application.Delete;
 

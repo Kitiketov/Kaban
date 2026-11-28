@@ -35,7 +35,7 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
             if (!emailExists)
             {
                 var user = new UserEntity
-                    { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
+                { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
                 db.Add(user);
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
