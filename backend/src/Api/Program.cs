@@ -57,7 +57,6 @@ builder.Services.AddSwaggerGen(options =>
     options.OperationFilter<BearerSecurityOperationFilter>();
 });
 builder.Services.AddProblemDetails();
-builder.Services.AddExceptionHandler<MessagingExceptionHandler>();
 builder.Services.AddCustomExceptionHandlers();
 builder.Services.AddKabanAuth(builder.Configuration);
 builder.Services.AddRateLimiter(options =>

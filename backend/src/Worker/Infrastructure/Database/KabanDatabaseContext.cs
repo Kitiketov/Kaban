@@ -1,4 +1,8 @@
-﻿using Kaban.Worker.Infrastructure.Database.Domain;
+﻿using Kaban.Worker.Features.Boards.Domain;
+using Kaban.Worker.Features.Projects.Domain;
+using Kaban.Worker.Features.Tasks.Domain;
+using Kaban.Worker.Features.Teams.Domain;
+using Kaban.Worker.Features.Users.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kaban.Worker.Infrastructure.Database;
@@ -13,6 +17,8 @@ public class KabanDatabaseContext(DbContextOptions<KabanDatabaseContext> options
     public DbSet<Users> Users => Set<Users>();
     public DbSet<TeamProjects> TeamProjects => Set<TeamProjects>();
     public DbSet<UserTeams> UserTeams => Set<UserTeams>();
+    public DbSet<Teams> Teams => Set<Teams>();
+    public DbSet<Roles> Roles => Set<Roles>();
     public DbSet<TaskTags> TaskTags => Set<TaskTags>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

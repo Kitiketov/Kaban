@@ -1,4 +1,6 @@
-using Kaban.Worker.Features.Tasks.Application;
+using Kaban.Worker.Features.Boards;
+using Kaban.Worker.Features.Tasks;
+using Kaban.Worker.Features.Teams;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -22,7 +24,9 @@ builder.Logging.AddOpenTelemetry(options =>
     options.ParseStateValues = true;
     options.AddOtlpExporter();
 });
-builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<TeamAccess>();
+builder.Services.AddScoped<BoardAccess>();
+builder.Services.AddScoped<TaskRankService>();
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource.AddService(builder.Environment.ApplicationName))
     .WithTracing(tracing => tracing

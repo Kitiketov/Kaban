@@ -13,18 +13,24 @@ public sealed class DeleteBoardColumnConsumer(KabanDatabaseContext db, ILogger<D
         var request = context.Message;
         var ct = context.CancellationToken;
 
-        var column = await db.BoardColumns.FirstOrDefaultAsync(x => x.Id == request.ColumnId, ct);
-        if (column is null)
+        var deleted = false;
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            await context.RespondAsync(new DeleteBoardColumnSuccess(false));
-            logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, false);
-            return;
+            await db.Database.AcquireResourceLockAsync(LockResource.BoardColumn, request.ColumnId, ct);
+
+            var column = await db.BoardColumns.FirstOrDefaultAsync(x => x.Id == request.ColumnId, ct);
+            if (column is not null)
+            {
+                db.Remove(column);
+                await db.SaveChangesAsync(ct);
+                deleted = true;
+            }
+
+            await tx.CommitAsync(ct);
         }
 
-        db.Remove(column);
-        await db.SaveChangesAsync(ct);
-        await context.RespondAsync(new DeleteBoardColumnSuccess(true));
+        await context.RespondAsync(new DeleteBoardColumnSuccess(deleted));
 
-        logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, true);
+        logger.LogInformation("Delete column result for {ColumnId}: {Deleted}", request.ColumnId, deleted);
     }
 }

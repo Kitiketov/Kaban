@@ -1,12 +1,12 @@
 using Contracts.Features.Boards.Get;
-using Kaban.Worker.Features.Tasks.Application;
+using Kaban.Worker.Features.Tasks;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 
 namespace Kaban.Worker.Features.Boards;
 
-public sealed class GetBoardConsumer(KabanDatabaseContext db, 
+public sealed class GetBoardConsumer(KabanDatabaseContext db,
     ILogger<GetBoardConsumer> logger)
     : IConsumer<GetBoardRequest>
 {
@@ -31,7 +31,7 @@ public sealed class GetBoardConsumer(KabanDatabaseContext db,
             column.Id,
             column.ColumnName,
             column.BoardOrder,
-            column.Tasks.Select(task => TaskService.ToTaskSuccess(task)).ToList()))
+            [.. column.Tasks.Select(task => task.ToTaskSuccess())]))
             .ToList();
 
         await context.RespondAsync(new GetBoardSuccess(board.Id, board.ProjectId, board.Name, details));

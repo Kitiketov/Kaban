@@ -3,7 +3,7 @@ using Contracts.Features.Users.Get;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
-using UserEntity = Kaban.Worker.Infrastructure.Database.Domain.Users;
+using UserEntity = Kaban.Worker.Features.Users.Domain.Users;
 
 namespace Kaban.Worker.Features.Users;
 
