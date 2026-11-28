@@ -1,0 +1,50 @@
+﻿name : "checks"
+
+on:
+  push :
+    branches: ["main"]
+  pull_request:
+  workflow_call:
+
+env:
+  DOTNET_VERSION: '10.0.x'
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  build-and-test :
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
+
+  lint :
+    runs-on: ubuntu-24.04
+    steps :
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Check formatting
+        run: dotnet format --verify-no-changes
+    
