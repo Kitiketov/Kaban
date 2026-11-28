@@ -22,8 +22,54 @@ public sealed class ExternalServicesFactAttribute : FactAttribute
     }
 }
 
+public sealed class PostgresFactAttribute : FactAttribute
+{
+    public PostgresFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("KABAN_TEST_POSTGRES")))
+            Skip = "Requires isolated PostgreSQL: KABAN_TEST_POSTGRES.";
+    }
+}
+
 public sealed class WorkerIntegrationTests
 {
+    [PostgresFact]
+    public async Task AdvisoryLocks_AreScopedByResource()
+    {
+        var database = "kaban_lock_test_" + Guid.NewGuid().ToString("N");
+        var connection = new NpgsqlConnectionStringBuilder(Environment.GetEnvironmentVariable("KABAN_TEST_POSTGRES"));
+        await using var admin = new NpgsqlConnection(connection.ConnectionString);
+        await admin.OpenAsync();
+        await new NpgsqlCommand($"CREATE DATABASE {database}", admin).ExecuteNonQueryAsync();
+        connection.Database = database;
+        try
+        {
+            var options = new DbContextOptionsBuilder<KabanDatabaseContext>()
+                .UseNpgsql(connection.ConnectionString)
+                .UseSnakeCaseNamingConvention()
+                .Options;
+            await using var db = new KabanDatabaseContext(options);
+            await using var transaction = await db.Database.BeginTransactionAsync();
+            await db.Database.AcquireResourceLockAsync(LockResource.Team, 42);
+
+            await using var other = new NpgsqlConnection(connection.ConnectionString);
+            await other.OpenAsync();
+            await using var command = new NpgsqlCommand(
+                "SELECT pg_try_advisory_xact_lock(@resource, @entity)", other);
+            command.Parameters.AddWithValue("resource", (int)LockResource.BoardColumn);
+            command.Parameters.AddWithValue("entity", 42);
+            Assert.True((bool)(await command.ExecuteScalarAsync())!);
+
+            command.Parameters["resource"].Value = (int)LockResource.Team;
+            Assert.False((bool)(await command.ExecuteScalarAsync())!);
+        }
+        finally
+        {
+            NpgsqlConnection.ClearAllPools();
+            await new NpgsqlCommand($"DROP DATABASE {database} WITH (FORCE)", admin).ExecuteNonQueryAsync();
+        }
+    }
+
     [ExternalServicesFact]
     public async Task Registration_Commits_RejectsDuplicateEmails_HandlesLateSuccess_AndFaults()
     {
@@ -36,7 +82,9 @@ public sealed class WorkerIntegrationTests
         try
         {
             var options = new DbContextOptionsBuilder<KabanDatabaseContext>()
-                .UseNpgsql(connection.ConnectionString).UseSnakeCaseNamingConvention().Options;
+                .UseNpgsql(connection.ConnectionString)
+                .UseSnakeCaseNamingConvention()
+                .Options;
             await using var db = new KabanDatabaseContext(options);
             await db.Database.MigrateAsync();
 
@@ -44,7 +92,8 @@ public sealed class WorkerIntegrationTests
             var services = new ServiceCollection();
             services.AddLogging();
             services.AddDbContext<KabanDatabaseContext>(x =>
-                x.UseNpgsql(connection.ConnectionString).UseSnakeCaseNamingConvention());
+                x.UseNpgsql(connection.ConnectionString)
+                    .UseSnakeCaseNamingConvention());
             services.AddMassTransit(x =>
             {
                 x.AddConsumer<RegisterUserConsumer>();
@@ -82,10 +131,13 @@ public sealed class WorkerIntegrationTests
                     await blocker.OpenAsync();
                     await using var transaction = await blocker.BeginTransactionAsync();
                     await using var command = new NpgsqlCommand(
-                        "SELECT pg_advisory_xact_lock(hashtextextended(@email, 1))", blocker, transaction);
+                        "SELECT pg_advisory_xact_lock(@resource, hashtext(@email))", blocker, transaction);
+                    command.Parameters.AddWithValue("resource", (int)LockResource.UserEmail);
                     command.Parameters.AddWithValue("email", late.Email);
                     await command.ExecuteNonQueryAsync();
-                    await Assert.ThrowsAsync<RequestTimeoutException>(() => client.GetResponse<RegisterUserSuccess, UserFailure>(late, timeout: RequestTimeout.After(s: 3)));
+                    await Assert.ThrowsAsync<RequestTimeoutException>(() =>
+                        client.GetResponse<RegisterUserSuccess, UserFailure>(
+                            late, timeout: RequestTimeout.After(s: 3)));
                     await transaction.CommitAsync();
                 }
                 var retry = await client.GetResponse<RegisterUserSuccess, UserFailure>(late);

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Kaban.Worker.Features.Boards;
 
-public sealed class GetBoardConsumer(KabanDatabaseContext db, 
+public sealed class GetBoardConsumer(KabanDatabaseContext db,
     ILogger<GetBoardConsumer> logger)
     : IConsumer<GetBoardRequest>
 {

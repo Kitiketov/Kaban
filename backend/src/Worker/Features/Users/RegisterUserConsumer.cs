@@ -25,23 +25,31 @@ public sealed class RegisterUserConsumer(KabanDatabaseContext db) : IConsumer<Re
         }
 
         var ct = context.CancellationToken;
-        var user = new UserEntity
-            { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
+        var emailExists = false;
+        RegisterUserSuccess? result = null;
         await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
             // Serialize registrations for the same normalized email across Worker instances.
             await db.Database.AcquireResourceLockAsync(LockResource.UserEmail, request.Email, ct: ct);
-            if (await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct))
+            emailExists = await db.Set<UserEntity>().AnyAsync(x => x.Email == request.Email, ct);
+            if (!emailExists)
             {
-                await context.RespondAsync(new UserFailure("email_conflict"));
-                return;
+                var user = new UserEntity
+                    { Email = request.Email, Name = request.Name.Trim(), HashedPassword = request.PasswordHash };
+                db.Add(user);
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                result = new RegisterUserSuccess(user.Id);
             }
-
-            db.Add(user);
-            await db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
         }
 
-        await context.RespondAsync(new RegisterUserSuccess(user.Id));
+        if (emailExists)
+        {
+            await context.RespondAsync(new UserFailure("email_conflict"));
+            return;
+        }
+
+        await context.RespondAsync(result
+            ?? throw new InvalidOperationException("User registration result was not created."));
     }
 }

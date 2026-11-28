@@ -16,11 +16,9 @@ public class RequestTimeoutExceptionHandler(ILogger<RequestTimeoutExceptionHandl
         logger.LogWarning("Worker request timed out for {Method} {Path}", httpContext.Request.Method,
             httpContext.Request.Path);
 
-        var result = Results.Json(
-            data: new { message = "Timeout occurred" },
-            statusCode: StatusCodes.Status503ServiceUnavailable
-        );
-        await result.ExecuteAsync(httpContext);
+        await Results.Problem(
+            statusCode: StatusCodes.Status503ServiceUnavailable,
+            title: "Worker response timed out").ExecuteAsync(httpContext);
 
         return true;
     }

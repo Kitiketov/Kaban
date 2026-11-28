@@ -21,35 +21,37 @@ public sealed class DeleteTeamConsumer(
             return;
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
-
-        var teamExists = await db.Teams.AnyAsync(x => x.Id == request.TeamId, ct);
-        if (!teamExists)
+        string? failureCode = null;
+        var projectCount = 0;
+        TeamDeleted? result = null;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("team_not_found"));
+            await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
+
+            failureCode = await access.EnsureTeamMemberAsync(request.TeamId, request.ActorId, ct);
+            if (failureCode is null)
+            {
+                var projectIds = await db.TeamProjects.AsNoTracking()
+                    .Where(x => x.TeamId == request.TeamId)
+                    .Select(x => x.ProjectId)
+                    .ToListAsync(ct);
+
+                await db.Projects.Where(x => projectIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
+                await db.Teams.Where(x => x.Id == request.TeamId).ExecuteDeleteAsync(ct);
+                await transaction.CommitAsync(ct);
+                projectCount = projectIds.Count;
+                result = new TeamDeleted(request.TeamId);
+            }
+        }
+
+        if (failureCode is not null)
+        {
+            await context.RespondAsync(new TeamFailure(failureCode));
             return;
         }
 
-        var accessError = await access.EnsureMemberAsync(request.TeamId, request.ActorId, ct);
-        if (accessError is not null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure(accessError));
-            return;
-        }
-
-        var projectIds = await db.TeamProjects.AsNoTracking()
-            .Where(x => x.TeamId == request.TeamId)
-            .Select(x => x.ProjectId)
-            .ToListAsync(ct);
-
-        await db.Projects.Where(x => projectIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
-        await db.Teams.Where(x => x.Id == request.TeamId).ExecuteDeleteAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        await context.RespondAsync(new TeamDeleted(request.TeamId));
-        logger.LogInformation("Deleted team {TeamId} with {ProjectCount} projects", request.TeamId, projectIds.Count);
+        var teamDeleted = result ?? throw new InvalidOperationException("Team deletion did not complete.");
+        await context.RespondAsync(teamDeleted);
+        logger.LogInformation("Deleted team {TeamId} with {ProjectCount} projects", request.TeamId, projectCount);
     }
 }

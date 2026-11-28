@@ -1,5 +1,6 @@
 using Contracts.Features.Teams.ChangeMemberRole;
 using Contracts.Features.Teams.Common;
+using Kaban.Worker.Features.Teams.Domain;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
@@ -24,49 +25,49 @@ public sealed class ChangeMemberRoleConsumer(
 
         var roleName = request.Role.Trim();
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
-
-        var teamExists = await db.Teams.AnyAsync(x => x.Id == request.TeamId, ct);
-        if (!teamExists)
+        string? failureCode = null;
+        MemberRoleChanged? result = null;
+        Roles? role = null;
+        UserTeams? membership = null;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("team_not_found"));
+            await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
+
+            failureCode = await access.EnsureTeamMemberAsync(request.TeamId, request.ActorId, ct);
+            if (failureCode is null)
+            {
+                role = await db.Roles
+                    .FirstOrDefaultAsync(x => x.TeamId == request.TeamId && x.RoleName == roleName, ct);
+                if (role is null)
+                    failureCode = "role_not_found";
+            }
+
+            if (failureCode is null)
+            {
+                membership = await db.UserTeams
+                    .FirstOrDefaultAsync(x => x.TeamId == request.TeamId && x.UserId == request.UserId, ct);
+                if (membership is null)
+                    failureCode = "member_not_found";
+            }
+
+            if (failureCode is null)
+            {
+                membership!.RoleId = role!.Id;
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                result = new MemberRoleChanged(request.TeamId, request.UserId, role.RoleName);
+            }
+        }
+
+        if (failureCode is not null)
+        {
+            await context.RespondAsync(new TeamFailure(failureCode));
             return;
         }
 
-        var accessError = await access.EnsureMemberAsync(request.TeamId, request.ActorId, ct);
-        if (accessError is not null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure(accessError));
-            return;
-        }
-
-        var role = await db.Roles
-            .FirstOrDefaultAsync(x => x.TeamId == request.TeamId && x.RoleName == roleName, ct);
-        if (role is null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("role_not_found"));
-            return;
-        }
-
-        var membership = await db.UserTeams
-            .FirstOrDefaultAsync(x => x.TeamId == request.TeamId && x.UserId == request.UserId, ct);
-        if (membership is null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new TeamFailure("member_not_found"));
-            return;
-        }
-
-        membership.RoleId = role.Id;
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        await context.RespondAsync(new MemberRoleChanged(request.TeamId, request.UserId, role.RoleName));
+        var roleChanged = result ?? throw new InvalidOperationException("Member role result was not created.");
+        await context.RespondAsync(roleChanged);
         logger.LogInformation("Changed role of member {UserId} in team {TeamId} to '{Role}'",
-            request.UserId, request.TeamId, role.RoleName);
+            request.UserId, request.TeamId, roleChanged.Role);
     }
 }

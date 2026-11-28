@@ -165,6 +165,13 @@ internal static class AuthTestUsers
 
 }
 
+public sealed class Probe
+{
+    public int Calls;
+    public TaskCompletionSource? ReleaseRegistration;
+    public TaskCompletionSource? RegistrationReceived;
+}
+
 public sealed class AuthApiFactory : WebApplicationFactory<Kaban.Api.Features.Auth.Presentation.AuthController>
 {
     public Mock<IRequestClient<GetCredentialsRequest>> Credentials { get; } = new(MockBehavior.Strict);

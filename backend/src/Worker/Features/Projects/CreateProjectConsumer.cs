@@ -5,6 +5,7 @@ using Kaban.Worker.Features.Teams;
 using Kaban.Worker.Infrastructure.Database;
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using ProjectEntity = Kaban.Worker.Features.Projects.Domain.Projects;
 
 namespace Kaban.Worker.Features.Projects;
 
@@ -24,33 +25,32 @@ public sealed class CreateProjectConsumer(
             return;
         }
 
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Database.ExecuteSqlInterpolatedAsync(
-            $"SELECT pg_advisory_xact_lock({request.TeamId})", ct);
-
-        var teamExists = await db.Teams.AnyAsync(x => x.Id == request.TeamId, ct);
-        if (!teamExists)
+        string? failureCode = null;
+        ProjectCreated? result = null;
+        await using (var transaction = await db.Database.BeginTransactionAsync(ct))
         {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new ProjectFailure("team_not_found"));
+            await db.Database.AcquireResourceLockAsync(LockResource.Team, request.TeamId, ct);
+
+            failureCode = await access.EnsureTeamMemberAsync(request.TeamId, request.ActorId, ct);
+            if (failureCode is null)
+            {
+                var project = new ProjectEntity { ProjectName = request.Name.Trim() };
+                db.Add(project);
+                db.Add(new TeamProjects { ProjectId = project.Id, Project = project, TeamId = request.TeamId });
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+                result = new ProjectCreated(project.Id, request.TeamId, project.ProjectName);
+            }
+        }
+
+        if (failureCode is not null)
+        {
+            await context.RespondAsync(new ProjectFailure(failureCode));
             return;
         }
 
-        var accessError = await access.EnsureMemberAsync(request.TeamId, request.ActorId, ct);
-        if (accessError is not null)
-        {
-            await transaction.RollbackAsync(ct);
-            await context.RespondAsync(new ProjectFailure(accessError));
-            return;
-        }
-
-        var project = new Domain.Projects{ ProjectName = request.Name.Trim() };
-        db.Add(project);
-        db.Add(new TeamProjects { ProjectId = project.Id, Project = project, TeamId = request.TeamId });
-        await db.SaveChangesAsync(ct);
-        await transaction.CommitAsync(ct);
-
-        await context.RespondAsync(new ProjectCreated(project.Id, request.TeamId, project.ProjectName));
-        logger.LogInformation("Created project {ProjectId} for team {TeamId}", project.Id, request.TeamId);
+        var projectCreated = result ?? throw new InvalidOperationException("Project result was not created.");
+        await context.RespondAsync(projectCreated);
+        logger.LogInformation("Created project {ProjectId} for team {TeamId}", projectCreated.Id, request.TeamId);
     }
 }
