@@ -207,10 +207,10 @@ public sealed class TeamProjectDatabaseTests
                         .Select(x => x.Role!.RoleName).SingleAsync());
                 }
 
-                    var forbiddenProjectDelete = await scope.ServiceProvider.GetRequiredService<IRequestClient<DeleteProjectRequest>>()
-                        .GetResponse<ProjectDeleted, ProjectFailure>(new DeleteProjectRequest(9, projectId));
-                    Assert.True(forbiddenProjectDelete.Is(out Response<ProjectFailure>? forbiddenProjectDeleteFailure));
-                    Assert.Equal("not_a_member", forbiddenProjectDeleteFailure.Message.Code);
+                var forbiddenProjectDelete = await scope.ServiceProvider.GetRequiredService<IRequestClient<DeleteProjectRequest>>()
+                    .GetResponse<ProjectDeleted, ProjectFailure>(new DeleteProjectRequest(9, projectId));
+                Assert.True(forbiddenProjectDelete.Is(out Response<ProjectFailure>? forbiddenProjectDeleteFailure));
+                Assert.Equal("not_a_member", forbiddenProjectDeleteFailure.Message.Code);
 
                 var removeMember = await scope.ServiceProvider.GetRequiredService<IRequestClient<RemoveTeamMemberRequest>>()
                     .GetResponse<TeamMemberRemoved, TeamFailure>(new RemoveTeamMemberRequest(7, teamId, 8));

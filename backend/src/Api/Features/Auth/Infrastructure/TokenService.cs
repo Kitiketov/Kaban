@@ -30,11 +30,17 @@ public sealed class TokenService(AuthOptions settings)
 
     public static TokenValidationParameters ValidationParameters(AuthOptions options) => new()
     {
-        ValidateIssuer = true, ValidIssuer = options.Issuer,
-        ValidateAudience = true, ValidAudience = options.Audience,
-        ValidateIssuerSigningKey = true, IssuerSigningKey = Key(options),
-        ValidateLifetime = true, RequireExpirationTime = true, RequireSignedTokens = true,
-        ValidAlgorithms = [SecurityAlgorithms.HmacSha256], ClockSkew = TimeSpan.Zero,
+        ValidateIssuer = true,
+        ValidIssuer = options.Issuer,
+        ValidateAudience = true,
+        ValidAudience = options.Audience,
+        ValidateIssuerSigningKey = true,
+        IssuerSigningKey = Key(options),
+        ValidateLifetime = true,
+        RequireExpirationTime = true,
+        RequireSignedTokens = true,
+        ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+        ClockSkew = TimeSpan.Zero,
         NameClaimType = "user_id"
     };
 }

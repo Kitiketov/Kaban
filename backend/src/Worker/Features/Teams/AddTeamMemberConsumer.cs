@@ -48,7 +48,7 @@ public sealed class AddTeamMemberConsumer(
                 var memberRole = await db.Roles
                     .SingleAsync(x => x.TeamId == request.TeamId && x.RoleName == TeamRoles.Member, ct);
                 db.Add(new UserTeams
-                    { UserId = request.UserId, TeamId = request.TeamId, RoleId = memberRole.Id });
+                { UserId = request.UserId, TeamId = request.TeamId, RoleId = memberRole.Id });
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
                 result = new TeamMemberAdded(request.TeamId, request.UserId, memberRole.RoleName);
