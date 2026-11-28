@@ -1,9 +1,9 @@
 using Kaban.Api.Features.Boards.Application.CreateBoard;
 using Kaban.Api.Features.Boards.Application.DeleteBoard;
+using Kaban.Api.Features.Boards.Application.DTO;
 using Kaban.Api.Features.Boards.Application.GetBoard;
 using Kaban.Api.Features.Boards.Application.ListBoards;
 using Kaban.Api.Features.Boards.Application.RenameBoard;
-using Kaban.Api.Features.Boards.Application.DTO;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 

@@ -3,9 +3,9 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Contracts.Features.Users.Common;
 using Contracts.Features.Users.Get;
-using Contracts.Features.Users.Search;
 using Contracts.Features.Users.GetCredentials;
 using Contracts.Features.Users.Register;
+using Contracts.Features.Users.Search;
 using Kaban.Api.Features.Auth.Application.DTO;
 using Kaban.Api.Features.Auth.Infrastructure;
 using Kaban.Api.Features.Users.Application.DTO;
@@ -13,9 +13,9 @@ using MassTransit;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
-using Xunit;
-using Moq;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Moq;
+using Xunit;
 
 namespace Kaban.Tests;
 

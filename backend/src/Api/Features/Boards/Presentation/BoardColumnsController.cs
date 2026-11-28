@@ -1,7 +1,7 @@
 using Kaban.Api.Features.Boards.Application.AddBoardColumn;
 using Kaban.Api.Features.Boards.Application.DeleteBoardColumn;
-using Kaban.Api.Features.Boards.Application.RenameBoardColumn;
 using Kaban.Api.Features.Boards.Application.DTO;
+using Kaban.Api.Features.Boards.Application.RenameBoardColumn;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
